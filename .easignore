@@ -14,6 +14,10 @@ docs/
 npm-debug.*
 yarn-debug.*
 
+# Ignorar pastas nativas locais geradas (CNG na nuvem)
+android/
+ios/
+
 # Ignorar pastas externas do monorepo se procurado no parent
 ../caneto_app_web
 ../caneto_admin
