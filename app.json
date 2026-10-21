@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Caneto",
+    "slug": "caneto-native",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "caneto",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.caneto.app",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-font",
+      "expo-router",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "72a9ea42-3a0b-4fdc-850c-0f3ef374a695"
+      }
+    },
+    "owner": "evandroti"
+  }
+}

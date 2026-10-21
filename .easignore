@@ -1,0 +1,19 @@
+# Ignorar dependências e pastas locais
+node_modules/
+.expo/
+.expo-export/
+dist-check/
+.tmp/
+.claude/
+docs/
+
+# Ignorar arquivos locais e de log
+.git/
+.env*.local
+*.log
+npm-debug.*
+yarn-debug.*
+
+# Ignorar pastas externas do monorepo se procurado no parent
+../caneto_app_web
+../caneto_admin
