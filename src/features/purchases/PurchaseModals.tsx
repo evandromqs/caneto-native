@@ -5,6 +5,7 @@ import type { List } from '../../data';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { theme } from '../../ui/theme';
 import { loadHistory, type PaymentMethod, type Purchase } from './repository';
+import { getErrorMessage } from '../../ui/error';
 
 const methods: { id: PaymentMethod; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'pix', label: 'Pix', icon: 'qr-code-outline' }, { id: 'debito', label: 'Cartão de Débito', icon: 'card-outline' }, { id: 'credito', label: 'Cartão de Crédito', icon: 'card-outline' }, { id: 'dinheiro', label: 'Dinheiro', icon: 'cash-outline' },
@@ -26,18 +27,18 @@ function PaymentDialog({ list, onClose, onConfirm }: { list: List | null; onClos
     <Text style={styles.label}>Forma de pagamento</Text>
     {methods.map(entry => <Pressable key={entry.id} style={[styles.method, method === entry.id && styles.methodActive]} onPress={() => setMethod(entry.id)}><Ionicons name={entry.icon} size={21} color={theme.blue} /><Text style={styles.methodText}>{entry.label}</Text><Ionicons name={method === entry.id ? 'radio-button-on' : 'radio-button-off'} size={21} color={theme.blue} /></Pressable>)}
     {!!message && <Text style={styles.message}>{message}</Text>}
-    <Pressable style={[styles.primary, (busy || !target.length) && styles.disabled]} disabled={busy || !target.length} onPress={async () => { setBusy(true); try { await onConfirm(method); onClose(); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } }}><Text style={styles.primaryText}>{busy ? 'Finalizando...' : 'Finalizar compras'}</Text></Pressable>
+    <Pressable style={[styles.primary, (busy || !target.length) && styles.disabled]} disabled={busy || !target.length} onPress={async () => { setBusy(true); try { await onConfirm(method); onClose(); } catch (error) { setMessage(getErrorMessage(error)); } finally { setBusy(false); } }}><Text style={styles.primaryText}>{busy ? 'Finalizando...' : 'Finalizar compras'}</Text></Pressable>
   </ModalSheet>;
 }
 
 export function HistoryModal({ visible, userId, onClose, onRecreate }: { visible: boolean; userId: string; onClose: () => void; onRecreate: (record: Purchase) => Promise<void> }) {
   const [records, setRecords] = useState<Purchase[]>([]);
   const [message, setMessage] = useState('');
-  useEffect(() => { if (!visible) return; let active = true; loadHistory(userId).then(data => { if (active) setRecords(data); }).catch(error => { if (active) setMessage(String(error)); }); return () => { active = false; }; }, [visible, userId]);
+  useEffect(() => { if (!visible) return; let active = true; loadHistory(userId).then(data => { if (active) setRecords(data); }).catch(error => { if (active) setMessage(getErrorMessage(error)); }); return () => { active = false; }; }, [visible, userId]);
   return <ModalSheet visible={visible} title="Histórico de Compras" subtitle="Compras finalizadas" onClose={onClose}>
     {!!message && <Text style={styles.message}>{message}</Text>}
     {!records.length && <Text style={styles.empty}>Nenhum histórico ainda.</Text>}
-    {records.map(record => <View key={record.id} style={styles.historyCard}><Text style={styles.historyName}>{record.list_name}</Text>{!!record.store_name && <Text style={styles.muted}>{record.store_name}</Text>}<Text style={styles.muted}>{new Date(record.completed_at).toLocaleDateString('pt-BR')} · {record.total_items} produtos</Text><Text style={styles.total}>{currency(Number(record.total_spent))}</Text><Pressable style={styles.recreate} onPress={() => void onRecreate(record).then(onClose).catch(error => setMessage(String(error)))}><Ionicons name="refresh-outline" size={17} color={theme.blue} /><Text style={styles.recreateText}>Criar lista novamente</Text></Pressable></View>)}
+    {records.map(record => <View key={record.id} style={styles.historyCard}><Text style={styles.historyName}>{record.list_name}</Text>{!!record.store_name && <Text style={styles.muted}>{record.store_name}</Text>}<Text style={styles.muted}>{new Date(record.completed_at).toLocaleDateString('pt-BR')} · {record.total_items} produtos</Text><Text style={styles.total}>{currency(Number(record.total_spent))}</Text><Pressable style={styles.recreate} onPress={() => void onRecreate(record).then(onClose).catch(error => setMessage(getErrorMessage(error)))}><Ionicons name="refresh-outline" size={17} color={theme.blue} /><Text style={styles.recreateText}>Criar lista novamente</Text></Pressable></View>)}
   </ModalSheet>;
 }
 

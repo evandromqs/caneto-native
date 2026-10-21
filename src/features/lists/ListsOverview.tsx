@@ -8,6 +8,7 @@ import { AppButton, AppText, IconButton, SurfaceCard } from '../../ui/primitives
 import { theme } from '../../ui/theme';
 import { listMetrics, selectVisibleLists, type ListsSortBy, type ListsSubTab } from './selectors';
 import { CreateListModal } from './CreateListModal';
+import { getErrorMessage } from '../../ui/error';
 
 type MaybePromise = void | Promise<void>;
 
@@ -45,7 +46,7 @@ export function ListsOverview(props: ListsOverviewProps) {
   const completedCount = props.lists.length - activeCount;
 
   const execute = async (operation: () => MaybePromise) => {
-    try { await operation(); } catch (error) { Alert.alert('Não foi possível concluir', error instanceof Error ? error.message : String(error)); }
+    try { await operation(); } catch (error) { Alert.alert('Não foi possível concluir', getErrorMessage(error)); }
   };
   const confirmDelete = (list: ShoppingList) => Alert.alert('Excluir lista?', `A lista “${list.name}” e seus itens serão removidos.`, [
     { text: 'Cancelar', style: 'cancel' },
@@ -60,7 +61,7 @@ export function ListsOverview(props: ListsOverviewProps) {
       onRefresh={props.onRefresh ? async () => {
         setRefreshing(true);
         try { await props.onRefresh?.(); }
-        catch (error) { Alert.alert('Não foi possível atualizar', error instanceof Error ? error.message : String(error)); }
+        catch (error) { Alert.alert('Não foi possível atualizar', getErrorMessage(error)); }
         finally { setRefreshing(false); }
       } : undefined}
       contentContainerStyle={styles.listContent}

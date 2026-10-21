@@ -5,6 +5,7 @@ import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { AppButton, AppText, IconButton, SurfaceCard } from '../../ui/primitives';
 import { theme } from '../../ui/theme';
+import { getErrorMessage } from '../../ui/error';
 
 type MaybePromise = void | Promise<void>;
 
@@ -31,7 +32,7 @@ function ListManagerDialog({ lists, activeListId, onClose, onSelectList, onCreat
   const [busy, setBusy] = useState(false);
   const run = async (operation: () => MaybePromise) => {
     if (busy) return;
-    try { setBusy(true); await operation(); } catch (error) { Alert.alert('Não foi possível concluir', error instanceof Error ? error.message : String(error)); } finally { setBusy(false); }
+    try { setBusy(true); await operation(); } catch (error) { Alert.alert('Não foi possível concluir', getErrorMessage(error)); } finally { setBusy(false); }
   };
   const create = () => {
     const name = newName.trim();

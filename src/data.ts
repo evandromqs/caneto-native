@@ -1,7 +1,48 @@
-import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 import { canetoData } from './core/data/supabaseAdapter';
 import type { ShoppingList } from './core/models/caneto';
+import { generateUUID, getErrorMessage } from './ui/error';
+
+export function createListPayload(options: {
+  id?: string;
+  name: string;
+  userId: string;
+  icon?: string;
+  color?: string;
+  storeId?: string | null;
+  storeName?: string | null;
+  storeAddress?: string | null;
+  isCompleted?: boolean;
+}) {
+  const now = Date.now();
+  const id = options.id || generateUUID();
+  return {
+    id,
+    user_id: options.userId,
+    name: options.name.trim(),
+    icon: options.icon ?? 'ShoppingCart',
+    color: options.color ?? 'emerald',
+    is_default: false,
+    budget: null,
+    share_code: null,
+    permission: 'viewer',
+    access_mode: 'private',
+    store_id: options.storeId ?? null,
+    store_name: options.storeName ?? null,
+    store_address: options.storeAddress ?? null,
+    is_completed: !!options.isCompleted,
+    completed_at: options.isCompleted ? now : null,
+    payment_method: null,
+    receipt_photo_url: null,
+    receipt_qr_code: null,
+    receipt_key: null,
+    total_spent: null,
+    detected_items_total: null,
+    pending_receipt: false,
+    created_at: now,
+    updated_at: now,
+  };
+}
 
 export type Item = {
   id: string;
@@ -51,24 +92,27 @@ export async function loadLists(userId: string): Promise<List[]> {
 }
 
 export async function createList(userId: string, name: string): Promise<string> {
-  const now = Date.now();
-  const id = Crypto.randomUUID();
-  const { error } = await supabase.from('lists').insert({
-    id, name: name.trim(), icon: 'ShoppingCart', color: 'emerald',
-    user_id: userId, created_at: now, updated_at: now,
-  });
-  if (error) throw error;
-  return id;
+  const cleanName = name.trim();
+  if (!cleanName) throw new Error('Informe o nome da lista.');
+  const payload = createListPayload({ name: cleanName, userId });
+  const { error } = await supabase.from('lists').insert(payload);
+  if (error) {
+    console.error('Erro ao criar lista no Supabase:', error);
+    throw new Error(getErrorMessage(error));
+  }
+  return payload.id;
 }
 
 export async function addItem(userId: string, listId: string, name: string): Promise<void> {
+  const cleanName = name.trim();
+  if (!cleanName) throw new Error('Informe o nome do produto.');
   const now = Date.now();
   const { error } = await supabase.from('items').insert({
-    id: Crypto.randomUUID(), list_id: listId, user_id: userId, name: name.trim(),
+    id: generateUUID(), list_id: listId, user_id: userId, name: cleanName,
     category_id: 'other', quantity: 1, unit: 'un', checked: false,
     created_at: now, updated_at: now,
   });
-  if (error) throw error;
+  if (error) throw new Error(getErrorMessage(error));
   await supabase.from('lists').update({ updated_at: now }).eq('id', listId);
 }
 
@@ -77,6 +121,6 @@ export async function setItemChecked(item: Item, checked: boolean): Promise<void
   const { error } = await supabase.from('items').update({
     checked, checked_at: checked ? now : null, updated_at: now,
   }).eq('id', item.id);
-  if (error) throw error;
+  if (error) throw new Error(getErrorMessage(error));
   await supabase.from('lists').update({ updated_at: now }).eq('id', item.list_id);
 }

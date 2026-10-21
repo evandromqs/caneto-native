@@ -6,6 +6,7 @@ import { CanetoIcon } from '../../ui/CanetoIcon';
 import { AppText } from '../../ui/primitives';
 import { theme } from '../../ui/theme';
 import { UndoDeleteToast } from '../../ui/UndoDeleteToast';
+import { getErrorMessage } from '../../ui/error';
 
 const suggestions = ['Leite', 'Pão Francês', 'Café', 'Ovos', 'Banana', 'Arroz', 'Feijão', 'Detergente', 'Açúcar', 'Manteiga'];
 const currency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -130,7 +131,7 @@ export function ShoppingListScreen({
       keyExtractor={row => row.kind === 'cart' ? 'cart-heading' : row.kind === 'category' ? `category-${row.id}` : row.item.id}
       contentContainerStyle={styles.content}
       refreshing={refreshing}
-      onRefresh={async () => { setRefreshing(true); try { await onRefresh(); } catch (error) { Alert.alert('Não foi possível atualizar', error instanceof Error ? error.message : String(error)); } finally { setRefreshing(false); } }}
+      onRefresh={async () => { setRefreshing(true); try { await onRefresh(); } catch (error) { Alert.alert('Não foi possível atualizar', getErrorMessage(error)); } finally { setRefreshing(false); } }}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={<>
         {!list.isCompleted && <View style={styles.search}><Ionicons name="search-outline" size={18} color={theme.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="Filtrar itens na lista..." placeholderTextColor={theme.muted} style={styles.searchInput} accessibilityLabel="Filtrar itens na lista" />{!!search && <Pressable onPress={() => setSearch('')} accessibilityLabel="Limpar filtro"><Ionicons name="close" size={18} color={theme.muted} /></Pressable>}</View>}

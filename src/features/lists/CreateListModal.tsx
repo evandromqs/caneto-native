@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppButton } from '../../ui/primitives';
 import { theme } from '../../ui/theme';
+import { getErrorMessage } from '../../ui/error';
 
 type MaybePromise = void | Promise<void>;
 
@@ -30,7 +31,7 @@ function CreateListDialog({ listCount, onClose, onCreate, onJoinList, onScanList
   const run = async (operation: () => MaybePromise) => {
     if (busy) return;
     try { setBusy(true); await operation(); onClose(); }
-    catch (error) { Alert.alert('Não foi possível concluir', error instanceof Error ? error.message : String(error)); }
+    catch (error) { Alert.alert('Não foi possível concluir', getErrorMessage(error)); }
     finally { setBusy(false); }
   };
   return <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>

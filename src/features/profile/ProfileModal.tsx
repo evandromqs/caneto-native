@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-nati
 import { ModalSheet } from '../../ui/ModalSheet';
 import { theme } from '../../ui/theme';
 import { loadProfile, saveProfile, type Profile } from './repository';
+import { getErrorMessage } from '../../ui/error';
 
 const empty: Profile = { display_name: '', username: '', visibility: 'public', is_photo_public: true };
 
@@ -21,7 +22,7 @@ function ProfileDialog({ userId, email, onClose }: { userId: string; email: stri
     <Text style={styles.label}>Visibilidade</Text><View style={styles.segment}>{(['public', 'private'] as const).map(value => <Pressable key={value} style={[styles.segmentButton, profile.visibility === value && styles.segmentActive]} onPress={() => setProfile(old => ({ ...old, visibility: value }))}><Text style={[styles.segmentText, profile.visibility === value && styles.segmentTextActive]}>{value === 'public' ? 'Público' : 'Privado'}</Text></Pressable>)}</View>
     <View style={styles.switchRow}><Text style={styles.label}>Foto de perfil pública</Text><Switch value={profile.is_photo_public} onValueChange={is_photo_public => setProfile(old => ({ ...old, is_photo_public }))} trackColor={{ true: theme.blue }} /></View>
     {!!message && <Text style={styles.message}>{message}</Text>}
-    <Pressable style={[styles.primary, busy && styles.disabled]} disabled={busy} onPress={async () => { if (!profile.display_name.trim() || profile.username.length < 3) { setMessage('Informe seu nome e um usuário com ao menos 3 caracteres.'); return; } setBusy(true); setMessage(''); try { await saveProfile(userId, { ...profile, display_name: profile.display_name.trim() }); onClose(); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } }}><Text style={styles.primaryText}>{busy ? 'Aguarde...' : 'Salvar perfil'}</Text></Pressable>
+    <Pressable style={[styles.primary, busy && styles.disabled]} disabled={busy} onPress={async () => { if (!profile.display_name.trim() || profile.username.length < 3) { setMessage('Informe seu nome e um usuário com ao menos 3 caracteres.'); return; } setBusy(true); setMessage(''); try { await saveProfile(userId, { ...profile, display_name: profile.display_name.trim() }); onClose(); } catch (error) { setMessage(getErrorMessage(error)); } finally { setBusy(false); } }}><Text style={styles.primaryText}>{busy ? 'Aguarde...' : 'Salvar perfil'}</Text></Pressable>
   </ModalSheet>;
 }
 

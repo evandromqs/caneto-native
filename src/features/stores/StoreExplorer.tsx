@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { theme } from '../../ui/theme';
 import { CanetoIcon } from '../../ui/CanetoIcon';
+import { getErrorMessage } from '../../ui/error';
 import { STORE_CATEGORIES, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
 import { linkStoreToList, loadStoreDetails, loadStorePrices, searchStores } from './repository';
 
@@ -25,7 +26,7 @@ export function StoreExplorer({ onSelectStore, coordinates, selectedStoreId, mod
     const timer = setTimeout(() => {
       setLoading(true); setError('');
       searchStores(query, category, lat != null && lng != null ? { lat, lng } : undefined).then(rows => { if (active) setStores(rows); })
-        .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); })
+        .catch(reason => { if (active) setError(getErrorMessage(reason)); })
         .finally(() => { if (active) setLoading(false); });
     }, query ? 300 : 0);
     return () => { active = false; clearTimeout(timer); };
@@ -42,7 +43,7 @@ export function StoreExplorer({ onSelectStore, coordinates, selectedStoreId, mod
     {!!error && <View style={styles.notice}><Text style={styles.noticeText}>{error}</Text><Pressable onPress={() => setRetry(value => value + 1)}><Text style={styles.retry}>Tentar novamente</Text></Pressable></View>}
     <ScrollView contentContainerStyle={styles.results} keyboardShouldPersistTaps="handled">
       {!loading && !featured.length && !error && <View style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="storefront-outline" size={28} color={theme.blue} /></View><Text style={styles.emptyTitle}>{query ? `Nenhum local encontrado para “${query}”` : 'Nenhum local encontrado'}</Text><Text style={styles.emptyDescription}>{!query && !coordinates ? 'Busque pelo nome ou selecione uma categoria para encontrar lojas.' : 'Tente outro nome ou categoria.'}</Text></View>}
-      {featured.map(store => <StoreCard key={store.id} store={store} selected={store.id === selectedStoreId} onPress={() => { if (mode === 'picker' && onSelectStore) void Promise.resolve(onSelectStore(store)).catch(reason => setError(reason instanceof Error ? reason.message : String(reason))); else setSelected(store); }} onDetails={() => setSelected(store)} picker={mode === 'picker'} />)}
+      {featured.map(store => <StoreCard key={store.id} store={store} selected={store.id === selectedStoreId} onPress={() => { if (mode === 'picker' && onSelectStore) void Promise.resolve(onSelectStore(store)).catch(reason => setError(getErrorMessage(reason))); else setSelected(store); }} onDetails={() => setSelected(store)} picker={mode === 'picker'} />)}
     </ScrollView>
     {mode === 'picker' && <View style={styles.pickerFooter}>{categoryControl}{searchControl}</View>}
     <StoreDetailsModal visible={!!selected} store={selected} onClose={() => setSelected(null)} onSelect={onSelectStore ? async store => { await onSelectStore(store); setSelected(null); } : undefined} />
@@ -59,8 +60,8 @@ function StorePickerDialog({ listId, onClose, onLinked, coordinates, selectedSto
   return <ModalSheet visible title="Vincular Loja à Lista" subtitle="Selecione o estabelecimento para sua lista de compras" onClose={onClose}>
     <View style={styles.pickerBody}>
       {!!message && <Text style={styles.error}>{message}</Text>}
-      {selectedStoreId && <View style={styles.linkedBanner}><View style={styles.linkedIcon}><Ionicons name="checkmark" size={22} color={theme.success} /></View><View style={styles.linkedCopy}><Text style={styles.linkedEyebrow}>LOJA VINCULADA ATUAL</Text>{!!selectedStoreName && <Text style={styles.linkedName} numberOfLines={1}>{selectedStoreName}</Text>}<Text style={styles.linkedText}>Selecione outra loja abaixo para trocar.</Text></View><Pressable style={styles.unlink} onPress={async () => { try { await linkStoreToList(listId, null); await onLinked?.(); onClose(); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } }}><Ionicons name="close" size={16} color={theme.danger} /><Text style={styles.unlinkText}>Desvincular</Text></Pressable></View>}
-      <StoreExplorer mode="picker" coordinates={coordinates} selectedStoreId={selectedStoreId} onSelectStore={async store => { try { setMessage(''); await linkStoreToList(listId, store); await onLinked?.(); onClose(); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); throw error; } }} />
+      {selectedStoreId && <View style={styles.linkedBanner}><View style={styles.linkedIcon}><Ionicons name="checkmark" size={22} color={theme.success} /></View><View style={styles.linkedCopy}><Text style={styles.linkedEyebrow}>LOJA VINCULADA ATUAL</Text>{!!selectedStoreName && <Text style={styles.linkedName} numberOfLines={1}>{selectedStoreName}</Text>}<Text style={styles.linkedText}>Selecione outra loja abaixo para trocar.</Text></View><Pressable style={styles.unlink} onPress={async () => { try { await linkStoreToList(listId, null); await onLinked?.(); onClose(); } catch (error) { setMessage(getErrorMessage(error)); } }}><Ionicons name="close" size={16} color={theme.danger} /><Text style={styles.unlinkText}>Desvincular</Text></Pressable></View>}
+      <StoreExplorer mode="picker" coordinates={coordinates} selectedStoreId={selectedStoreId} onSelectStore={async store => { try { setMessage(''); await linkStoreToList(listId, store); await onLinked?.(); onClose(); } catch (error) { setMessage(getErrorMessage(error)); throw error; } }} />
     </View>
   </ModalSheet>;
 }
@@ -103,7 +104,7 @@ function StoreDetailsDialog({ store, onClose, onSelect }: { store: Store; onClos
     {loading && <ActivityIndicator color={theme.blue} />}
     {section === 'catalog' && <><View style={styles.catalogSummary}><Ionicons name="bag-handle-outline" size={20} color={theme.blue} /><Text style={styles.catalogSummaryText}>{prices.length} {prices.length === 1 ? 'produto cadastrado' : 'produtos cadastrados'}</Text></View>{!loading && prices.length === 0 && <View style={styles.catalogEmpty}><Ionicons name="pricetags-outline" size={30} color={theme.blue} /><Text style={styles.emptyTitle}>Nenhum preço cadastrado</Text><Text style={styles.emptyDescription}>Os preços aparecerão aqui quando forem enviados pela comunidade.</Text></View>}{prices.map(price => <View key={price.id} style={styles.priceRow}><View style={styles.productIcon}><CanetoIcon name={price.category_id} size={23} color={theme.blue} /></View><View style={styles.priceName}><Text style={styles.priceTitle}>{price.product_name}</Text><Text style={styles.priceSub}>{price.price_type === 'confirmed' ? '✓ Confirmado por nota' : 'Valor estimado'} · {new Date(price.observed_at).toLocaleDateString('pt-BR')}</Text><Text style={styles.priceValue}>{price.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / {price.unit}</Text></View></View>)}</>}
     {!!mapUrl && <Pressable style={styles.secondary} onPress={() => void Linking.openURL(mapUrl)}><Ionicons name="navigate-outline" size={19} color={theme.blue} /><Text style={styles.secondaryText}>Abrir no mapa</Text></Pressable>}
-    {!!onSelect && <Pressable style={[styles.primary, selecting && { opacity: 0.6 }]} disabled={selecting} onPress={async () => { setSelecting(true); try { await onSelect(current); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setSelecting(false); } }}><Ionicons name="checkmark" size={20} color="white" /><Text style={styles.primaryText}>{selecting ? 'Selecionando...' : 'Selecionar este local'}</Text></Pressable>}
+    {!!onSelect && <Pressable style={[styles.primary, selecting && { opacity: 0.6 }]} disabled={selecting} onPress={async () => { setSelecting(true); try { await onSelect(current); } catch (error) { setMessage(getErrorMessage(error)); } finally { setSelecting(false); } }}><Ionicons name="checkmark" size={20} color="white" /><Text style={styles.primaryText}>{selecting ? 'Selecionando...' : 'Selecionar este local'}</Text></Pressable>}
   </ModalSheet>;
 }
 

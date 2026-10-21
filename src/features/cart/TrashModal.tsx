@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { DeletedShoppingItem } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { theme } from '../../ui/theme';
+import { getErrorMessage } from '../../ui/error';
 import { formatRemainingTime, SIX_HOURS_MS } from './trashRepository';
 
 export interface TrashModalProps {
@@ -54,7 +55,7 @@ function TrashDialog({
       setBusyItem(item.id);
       await onRestoreItem(item);
     } catch (error) {
-      Alert.alert('Erro ao restaurar', error instanceof Error ? error.message : String(error));
+      Alert.alert('Erro ao restaurar', getErrorMessage(error));
     } finally {
       setBusyItem(null);
     }
@@ -65,7 +66,7 @@ function TrashDialog({
       setRestoringAll(true);
       await onRestoreAll();
     } catch (error) {
-      Alert.alert('Erro ao restaurar todos', error instanceof Error ? error.message : String(error));
+      Alert.alert('Erro ao restaurar todos', getErrorMessage(error));
     } finally {
       setRestoringAll(false);
     }
@@ -82,7 +83,7 @@ function TrashDialog({
           style: 'destructive',
           onPress: () => {
             void Promise.resolve(onEmptyTrash()).catch(error => {
-              Alert.alert('Erro', error instanceof Error ? error.message : String(error));
+              Alert.alert('Erro', getErrorMessage(error));
             });
           },
         },

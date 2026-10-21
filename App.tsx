@@ -28,9 +28,10 @@ import type { SettingsPreferences } from './src/features/settings/SettingsScreen
 import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
+import { getErrorMessage } from './src/ui/error';
 
 const green = theme.blue;
-const errorMessage = (error: unknown) => Alert.alert('Não foi possível continuar', error instanceof Error ? error.message : String(error));
+const errorMessage = (error: unknown) => Alert.alert('Não foi possível continuar', getErrorMessage(error));
 const Text = ({ style, ...props }: TextProps) => <NativeText {...props} style={[{ fontFamily: theme.font.regular }, style]} />;
 
 export default function App() {
@@ -223,7 +224,23 @@ export default function App() {
       lists={lists.map(list => list.domain).filter((list): list is ShoppingList => !!list)}
       activeListId={selectedId ?? undefined}
       onSelectList={list => setSelectedId(list.id)}
-      onCreateList={async name => { const id = await createList(session.user.id, name); await refresh(session.user.id); setSelectedId(id); }}
+      onCreateList={async name => {
+        const cleanName = name.trim();
+        const id = await createList(session.user.id, cleanName);
+        const now = Date.now();
+        const newListDomain: ShoppingList = {
+          id, ownerId: session.user.id, permission: 'owner', name: cleanName,
+          icon: 'ShoppingCart', color: 'emerald', isDefault: false,
+          accessMode: 'private', isCompleted: false, pendingReceipt: false, createdAt: now, updatedAt: now, items: [],
+        };
+        const newListLegacy: List = {
+          id, name: cleanName, color: 'emerald', user_id: session.user.id,
+          is_completed: false, created_at: now, updated_at: now, items: [], domain: newListDomain,
+        };
+        setLists(prev => [newListLegacy, ...prev.filter(l => l.id !== id)]);
+        setSelectedId(id);
+        void refresh(session.user.id).catch(console.warn);
+      }}
       onEditList={list => { setModalListId(list.id); setModal('list'); }}
       onShareList={list => { setModalListId(list.id); setModal('share'); }}
       onDuplicateList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => duplicateList(legacy, session.user.id), false); }}
@@ -247,7 +264,32 @@ export default function App() {
     />}
     <View style={styles.dock}>{([{ id: 'lists', label: 'Listas', icon: 'list' }, { id: 'stores', label: 'Locais', icon: 'store' }, { id: 'social', label: 'Social', icon: 'social' }, { id: 'settings', label: 'Ajustes', icon: 'settings' }] as const).map(entry => <Pressable key={entry.id} style={[styles.dockButton, tab === entry.id && styles.dockActive]} onPress={() => setTab(entry.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === entry.id }} accessibilityLabel={entry.label}><CanetoIcon name={entry.icon} size={20} color={tab === entry.id ? 'white' : '#475569'} />{tab === entry.id && <Text style={styles.dockActiveText}>{entry.label}</Text>}</Pressable>)}</View>
   </>}
-    <NewListModal visible={modal === 'new'} busy={busy} onClose={() => setModal(null)} onCreate={async name => { if (!session) return; setBusy(true); try { const id = await createList(session.user.id, name); await refresh(session.user.id); setSelectedId(id); setModal(null); } catch (error) { errorMessage(error); } finally { setBusy(false); } }} />
+    <NewListModal visible={modal === 'new'} busy={busy} onClose={() => setModal(null)} onCreate={async name => {
+      if (!session) return;
+      setBusy(true);
+      try {
+        const cleanName = name.trim();
+        const id = await createList(session.user.id, cleanName);
+        const now = Date.now();
+        const newListDomain: ShoppingList = {
+          id, ownerId: session.user.id, permission: 'owner', name: cleanName,
+          icon: 'ShoppingCart', color: 'emerald', isDefault: false,
+          accessMode: 'private', isCompleted: false, pendingReceipt: false, createdAt: now, updatedAt: now, items: [],
+        };
+        const newListLegacy: List = {
+          id, name: cleanName, color: 'emerald', user_id: session.user.id,
+          is_completed: false, created_at: now, updated_at: now, items: [], domain: newListDomain,
+        };
+        setLists(prev => [newListLegacy, ...prev.filter(l => l.id !== id)]);
+        setSelectedId(id);
+        setModal(null);
+        void refresh(session.user.id).catch(console.warn);
+      } catch (error) {
+        errorMessage(error);
+      } finally {
+        setBusy(false);
+      }
+    }} />
     <ListEditModal list={modal === 'list' ? modalList?.domain ?? null : null} onClose={() => setModal(null)}
       trashCount={modalList ? getValidTrash(modalList.id).length : 0}
       onOpenTrash={list => { setSelectedId(list.id); setModal('trash'); }}

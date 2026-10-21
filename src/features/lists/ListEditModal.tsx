@@ -5,6 +5,7 @@ import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { AppButton, AppField, AppText } from '../../ui/primitives';
 import { theme } from '../../ui/theme';
+import { getErrorMessage } from '../../ui/error';
 
 type MaybePromise = void | Promise<void>;
 
@@ -33,7 +34,7 @@ function ListEditDialog({ list, trashCount, onOpenTrash, onClose, onSave, onShar
   const run = async (operation: () => MaybePromise, close = false) => {
     if (busy) return;
     try { setBusy(true); setError(''); await operation(); if (close) onClose(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    catch (cause) { setError(getErrorMessage(cause)); }
     finally { setBusy(false); }
   };
   const save = () => {
