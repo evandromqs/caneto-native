@@ -1,7 +1,7 @@
 import { supabase } from '../../supabase';
 import { categoryLabel, normalizeStoreText, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
 
-const API_ORIGIN = (process.env.EXPO_PUBLIC_CANETO_API_URL || 'https://caneto.online').replace(/\/$/, '');
+const API_ORIGIN = (process.env.EXPO_PUBLIC_CANETO_API_URL || 'https://www.caneto.online').replace(/\/$/, '');
 
 type PlaceResponse = { stores?: unknown[]; store?: unknown; error?: string };
 type CommunityRow = { id: string; name: string; category: string; latitude: number; longitude: number };
@@ -67,9 +67,17 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 export async function searchStores(query = '', category: StoreCategory = 'all', coords?: Coordinates): Promise<Store[]> {
   const q = query.trim().slice(0, 160);
   const params = new URLSearchParams();
-  if (q) params.set('q', q);
-  if (!q && category !== 'all') params.set('category', category);
-  if (coords) { params.set('lat', String(coords.lat)); params.set('lng', String(coords.lng)); }
+  if (q) {
+    params.set('q', q);
+  } else if (category !== 'all') {
+    params.set('category', category);
+  } else if (!coords) {
+    params.set('q', 'supermercado');
+  }
+  if (coords) {
+    params.set('lat', String(coords.lat));
+    params.set('lng', String(coords.lng));
+  }
 
   let communityQuery = supabase.from('store_submissions')
     .select('id,name,category,latitude,longitude')
@@ -78,7 +86,7 @@ export async function searchStores(query = '', category: StoreCategory = 'all', 
   else if (category !== 'all') communityQuery = communityQuery.eq('category', category);
 
   const [places, community] = await Promise.allSettled([
-    q || coords || category !== 'all' ? getJson(`${API_ORIGIN}/api/places?${params}`) : Promise.resolve({ stores: [] } as PlaceResponse),
+    getJson(`${API_ORIGIN}/api/places?${params}`),
     communityQuery.order('created_at', { ascending: false }).limit(80),
   ]);
   const remote = places.status === 'fulfilled' && Array.isArray(places.value.stores)
@@ -88,10 +96,15 @@ export async function searchStores(query = '', category: StoreCategory = 'all', 
   if (places.status === 'rejected' && (community.status === 'rejected' || community.value.error)) {
     throw new Error('Não foi possível carregar os locais. Verifique a conexão e tente novamente.');
   }
-  const matches = [...remote, ...submitted].filter(store => {
-    if (q) { const value = normalizeStoreText(`${store.name} ${store.address} ${store.categoryLabel}`); return value.includes(normalizeStoreText(q)); }
+  const filteredRemote = category === 'all' ? remote : remote.filter(store => store.category === category);
+  const filteredSubmitted = submitted.filter(store => {
+    if (q) {
+      const value = normalizeStoreText(`${store.name} ${store.address} ${store.categoryLabel}`);
+      return value.includes(normalizeStoreText(q));
+    }
     return category === 'all' || store.category === category;
   });
+  const matches = [...filteredRemote, ...filteredSubmitted];
   return [...new Map(matches.map(store => [store.id, store])).values()];
 }
 

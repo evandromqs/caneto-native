@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingItem, ShoppingList } from '../../core/models/caneto';
 import { CanetoIcon } from '../../ui/CanetoIcon';
@@ -7,23 +8,10 @@ import { AppText } from '../../ui/primitives';
 import { theme } from '../../ui/theme';
 import { UndoDeleteToast } from '../../ui/UndoDeleteToast';
 import { getErrorMessage } from '../../ui/error';
+import { CATEGORIES, categoryFor } from '../../core/categories';
 
 const suggestions = ['Leite', 'Pão Francês', 'Café', 'Ovos', 'Banana', 'Arroz', 'Feijão', 'Detergente', 'Açúcar', 'Manteiga'];
 const currency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const categories: Record<string, { name: string; color: string; background: string; order: number }> = {
-  hortifruti: { name: 'Hortifrúti', color: '#065F46', background: '#D1FAE5', order: 1 },
-  acougue: { name: 'Carnes & Aves', color: '#9F1239', background: '#FFE4E6', order: 2 },
-  frios: { name: 'Frios & Laticínios', color: '#92400E', background: '#FEF3C7', order: 3 },
-  padaria: { name: 'Padaria & Confeitaria', color: '#9A3412', background: '#FFEDD5', order: 4 },
-  mercearia: { name: 'Mercearia & Despensa', color: '#1E40AF', background: '#DBEAFE', order: 5 },
-  bebidas: { name: 'Bebidas & Sucos', color: '#155E75', background: '#CFFAFE', order: 6 },
-  limpeza: { name: 'Limpeza & Casa', color: '#6B21A8', background: '#F3E8FF', order: 7 },
-  higiene: { name: 'Higiene & Beleza', color: '#9D174D', background: '#FCE7F3', order: 8 },
-  congelados: { name: 'Congelados', color: '#075985', background: '#E0F2FE', order: 9 },
-  pet: { name: 'Pet Shop', color: '#115E59', background: '#CCFBF1', order: 10 },
-  outros: { name: 'Outros', color: '#334155', background: '#F1F5F9', order: 11 },
-};
-const categoryFor = (id: string) => categories[id] ?? categories.outros;
 type Row = { kind: 'item'; item: ShoppingItem } | { kind: 'cart'; count: number } | { kind: 'category'; id: string; items: ShoppingItem[] };
 
 type Props = {
@@ -65,6 +53,7 @@ export function ShoppingListScreen({
   onUndoDelete,
   onDismissDeleteToast,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [newItem, setNewItem] = useState('');
   const [cartExpanded, setCartExpanded] = useState(false);
@@ -78,7 +67,7 @@ export function ShoppingListScreen({
   const pendingRows: Row[] = showCategoryHeaders ? (() => {
     const groups = new Map<string, ShoppingItem[]>();
     for (const item of pending) {
-      const id = categories[item.categoryId] ? item.categoryId : 'outros';
+      const id = CATEGORIES[item.categoryId] ? item.categoryId : 'outros';
       const group = groups.get(id) ?? [];
       group.push(item);
       groups.set(id, group);
@@ -157,7 +146,7 @@ export function ShoppingListScreen({
         : item.kind === 'category' ? <CategoryHeader id={item.id} items={item.items} collapsed={!!collapsedCategories[item.id]} onToggle={() => setCollapsedCategories(current => ({ ...current, [item.id]: !current[item.id] }))} />
         : <ItemCard item={item.item} readOnly={readOnly} showCategoryBadge={!showCategoryHeaders} onToggle={() => void onToggle(item.item)} onEdit={() => onEdit(item.item)} />}
     />
-    {!readOnly && <View style={styles.composer}><TextInput style={styles.composerInput} value={newItem} onChangeText={setNewItem} placeholder="Adicionar produto" placeholderTextColor={theme.muted} onSubmitEditing={() => add()} returnKeyType="done" /><Pressable style={styles.addButton} onPress={() => add()} disabled={!newItem.trim() || busy} accessibilityLabel="Adicionar produto"><CanetoIcon name="plus" size={22} color="white" /></Pressable></View>}
+    {!readOnly && <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12) }]}><TextInput style={styles.composerInput} value={newItem} onChangeText={setNewItem} placeholder="Adicionar produto (ex: 2kg de maçã)" placeholderTextColor={theme.muted} onSubmitEditing={() => add()} returnKeyType="done" /><Pressable style={styles.addButton} onPress={() => add()} disabled={!newItem.trim() || busy} accessibilityLabel="Adicionar produto"><CanetoIcon name="plus" size={22} color="white" /></Pressable></View>}
   </View>;
 }
 

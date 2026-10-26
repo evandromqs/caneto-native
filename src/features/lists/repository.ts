@@ -2,6 +2,7 @@ import { supabase } from '../../supabase';
 import type { Item, List } from '../../data';
 import { createListPayload } from '../../data';
 import { generateUUID, getErrorMessage } from '../../ui/error';
+import { suggestCategory } from '../../core/categories';
 
 export async function renameList(listId: string, name: string, storeName?: string) {
   const { error } = await supabase.from('lists').update({ name: name.trim(), store_name: storeName?.trim() || null, updated_at: Date.now() }).eq('id', listId);
@@ -43,9 +44,10 @@ export async function duplicateList(list: List, userId: string) {
   return payload.id;
 }
 
-export async function saveItemChanges(item: Item, changes: { name: string; quantity: number; unit: string; price: number | null }) {
+export async function saveItemChanges(item: Item, changes: { name: string; quantity: number; unit: string; price: number | null; category_id?: string }) {
   const now = Date.now();
-  const { error } = await supabase.from('items').update({ ...changes, updated_at: now }).eq('id', item.id);
+  const category_id = changes.category_id ?? suggestCategory(changes.name);
+  const { error } = await supabase.from('items').update({ ...changes, category_id, updated_at: now }).eq('id', item.id);
   if (error) throw new Error(getErrorMessage(error));
   const { error: listError } = await supabase.from('lists').update({ updated_at: now }).eq('id', item.list_id);
   if (listError) throw new Error(getErrorMessage(listError));

@@ -1,5 +1,6 @@
-/** Shared visual values from caneto_app_web/app/globals.css. */
-export const theme = {
+/** Visual design tokens synchronized with caneto_app_web/app/globals.css. */
+
+export const lightPalette = {
   blue: '#0943F1',
   blueDark: '#0732B8',
   blueLight: '#386BF6',
@@ -19,6 +20,36 @@ export const theme = {
   success: '#059669',
   successSoft: '#ECFDF5',
   warning: '#D97706',
+};
+
+export const darkPalette = {
+  blue: '#0943F1',
+  blueDark: '#0732B8',
+  blueLight: '#386BF6',
+  blueSoft: 'rgba(9, 67, 241, 0.22)',
+  background: '#080D1A',
+  surface: '#0F172A',
+  surfaceMuted: '#1E293B',
+  ink: '#F8FAFC',
+  inkStrong: '#FFFFFF',
+  muted: '#94A3B8',
+  subtle: '#64748B',
+  placeholder: '#64748B',
+  border: '#1E293B',
+  borderStrong: '#334155',
+  danger: '#EF4444',
+  dangerSoft: 'rgba(239, 68, 68, 0.18)',
+  success: '#10B981',
+  successSoft: 'rgba(16, 185, 129, 0.18)',
+  warning: '#F59E0B',
+};
+
+export function getThemeColors(isDark: boolean) {
+  return isDark ? darkPalette : lightPalette;
+}
+
+export const theme = {
+  ...lightPalette,
   font: {
     regular: 'Poppins_400Regular',
     semibold: 'Poppins_600SemiBold',
@@ -27,7 +58,7 @@ export const theme = {
   },
   radius: { xs: 4, sm: 6, md: 8, lg: 12, xl: 15, xxl: 20, xxxl: 24 },
   spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 },
-  touchTarget: 44,
+  touchTarget: 48,
   dialog: { horizontalMargin: 12, maxWidth: 512, backdrop: 'rgba(2, 6, 23, 0.80)' },
 } as const;
 

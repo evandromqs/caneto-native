@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text as NativeText, TextInput, View, type TextProps } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text as NativeText, TextInput, useColorScheme, View, type TextProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from '@expo-google-fonts/poppins';
 import type { Session } from '@supabase/supabase-js';
@@ -21,8 +21,18 @@ import { canetoData } from './src/core/data/supabaseAdapter';
 import { AccountAuthActions } from './src/features/account/AccountAuthActions';
 import { ShoppingListScreen } from './src/features/cart/ShoppingListScreen';
 import { CanetoIcon } from './src/ui/CanetoIcon';
-import { SocialScreen } from './src/features/social/SocialScreen';
-import { loadSocialData, type SocialDataProps } from './src/features/social/repository';
+import { SocialScreen, type SocialFriend, type SocialInvitation, type SocialSearchResult } from './src/features/social/SocialScreen';
+import {
+  acceptFriendRequest,
+  acceptListInvitation,
+  cancelFriendRequest,
+  declineFriendRequest,
+  declineListInvitation,
+  loadSocialData,
+  searchSocialUsers,
+  sendFriendRequest,
+  type SocialDataProps,
+} from './src/features/social/repository';
 import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import type { SettingsPreferences } from './src/features/settings/SettingsScreen';
 import { updatePreferences } from './src/features/account/profile';
@@ -51,6 +61,9 @@ export default function App() {
   const [socialData, setSocialData] = useState<SocialDataProps | null>(null);
   const [socialLoading, setSocialLoading] = useState(false);
   const [socialError, setSocialError] = useState(false);
+  const [socialSearch, setSocialSearch] = useState('');
+  const [socialResults, setSocialResults] = useState<SocialSearchResult[]>([]);
+  const [socialSearching, setSocialSearching] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<'lists' | 'stores' | 'social' | 'settings'>('lists');
   const [modal, setModal] = useState<'new' | 'list' | 'item' | 'join' | 'share' | 'profile' | 'payment' | 'history' | 'store' | 'trash' | null>(null);
@@ -108,6 +121,99 @@ export default function App() {
       .finally(() => { if (active) setSocialLoading(false); });
     return () => { active = false; };
   }, [session?.user.id, tab, lists]);
+
+  useEffect(() => {
+    if (!session || tab !== 'social' || socialSearch.trim().length < 2) {
+      setSocialResults([]);
+      setSocialSearching(false);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(() => {
+      setSocialSearching(true);
+      searchSocialUsers(session.user.id, socialSearch)
+        .then(res => { if (active) setSocialResults(res); })
+        .catch(console.warn)
+        .finally(() => { if (active) setSocialSearching(false); });
+    }, 300);
+    return () => { active = false; clearTimeout(timer); };
+  }, [session?.user.id, tab, socialSearch]);
+
+  const reloadSocial = useCallback(async (userId: string) => {
+    try {
+      const data = await loadSocialData(userId, { lists });
+      setSocialData(data);
+      setSocialError(false);
+    } catch (err) {
+      setSocialError(true);
+      errorMessage(err);
+    }
+  }, [lists]);
+
+  async function handleSendRequest(user: SocialSearchResult) {
+    if (!session) return;
+    try {
+      await sendFriendRequest(session.user.id, user.id);
+      Alert.alert('Solicitação enviada!', `Convite de amizade enviado para @${user.username}.`);
+      await reloadSocial(session.user.id);
+      setSocialResults(prev => prev.map(u => u.id === user.id ? { ...u, relationship: 'pending_sent' } : u));
+    } catch (error) {
+      errorMessage(error);
+    }
+  }
+
+  async function handleAcceptFriend(friend: SocialFriend) {
+    if (!session) return;
+    try {
+      await acceptFriendRequest(session.user.id, friend.id);
+      Alert.alert('Amizade aceita!', `Agora você e ${friend.name} estão conectados no Caneto.`);
+      await reloadSocial(session.user.id);
+    } catch (error) {
+      errorMessage(error);
+    }
+  }
+
+  async function handleDeclineFriend(friend: SocialFriend) {
+    if (!session) return;
+    try {
+      await declineFriendRequest(session.user.id, friend.id);
+      await reloadSocial(session.user.id);
+    } catch (error) {
+      errorMessage(error);
+    }
+  }
+
+  async function handleCancelRequest(friend: SocialFriend) {
+    if (!session) return;
+    try {
+      await cancelFriendRequest(session.user.id, friend.id);
+      await reloadSocial(session.user.id);
+    } catch (error) {
+      errorMessage(error);
+    }
+  }
+
+  async function handleAcceptInvitation(invitation: SocialInvitation) {
+    if (!session) return;
+    try {
+      const listId = await acceptListInvitation(session.user.id, invitation.id);
+      await refresh(session.user.id);
+      await reloadSocial(session.user.id);
+      setSelectedId(listId);
+    } catch (error) {
+      errorMessage(error);
+    }
+  }
+
+  async function handleDeclineInvitation(invitation: SocialInvitation) {
+    if (!session) return;
+    try {
+      await declineListInvitation(session.user.id, invitation.id);
+      await reloadSocial(session.user.id);
+    } catch (error) {
+      errorMessage(error);
+    }
+  }
   useEffect(() => {
     if (Platform.OS !== 'android' || !session) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -191,6 +297,7 @@ export default function App() {
       }
     }
   }
+  const systemScheme = useColorScheme();
   const preferences: SettingsPreferences | undefined = profile ? {
     theme: profile.preferences.theme ?? 'light',
     fontSize: profile.preferences.fontSize ?? 'normal',
@@ -200,8 +307,11 @@ export default function App() {
     vibration: profile.preferences.vibration ?? true,
     soundEffects: profile.preferences.soundEffects ?? true,
   } : undefined;
-  if (starting || (!fontsLoaded && !fontError)) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color={green} /></SafeAreaView>;
-  if (!session) return <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="dark-content" translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior="padding"><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
+
+  const isDark = preferences?.theme === 'dark' || (preferences?.theme === 'system' && systemScheme === 'dark');
+
+  if (starting || (!fontsLoaded && !fontError)) return <SafeAreaView style={[styles.center, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]}><ActivityIndicator size="large" color={green} /></SafeAreaView>;
+  if (!session) return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior="padding"><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
     <View style={styles.brandRow}><Image source={require('./assets/logo.webp')} style={styles.brandLogo} /><Text style={styles.brand}>Caneto<Text style={styles.tm}>™</Text></Text></View>
     <Text style={styles.tagline}>Caneto - A lista que te entende</Text>
     <Text style={styles.title}>{register ? 'Crie sua conta' : 'Entre na sua conta'}</Text>
@@ -215,7 +325,7 @@ export default function App() {
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 
-  return <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}><StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />{selected?.domain ? <ShoppingListScreen
+  return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />{selected?.domain ? <ShoppingListScreen
     list={selected.domain}
     busy={busy}
     onBack={() => {
@@ -266,20 +376,39 @@ export default function App() {
         onRefresh={() => refresh(session.user.id)}
       />}
       {tab === 'stores' && <StoreExplorer />}
-      {tab === 'social' && <SocialScreen {...(socialData ?? { friends: [] })} friendsLoading={socialLoading} friendsError={socialError} onOpenJoin={() => setModal('join')} onOpenList={id => setSelectedId(id)} onRetryFriends={() => { setSocialData(null); void loadSocialData(session.user.id, { lists }).then(setSocialData).then(() => setSocialError(false)).catch(errorMessage); }} />}
+      {tab === 'social' && <SocialScreen
+        {...(socialData ?? { friends: [] })}
+        friendsLoading={socialLoading}
+        friendsError={socialError}
+        searchQuery={socialSearch}
+        searchResults={socialResults}
+        searchLoading={socialSearching}
+        onSearchChange={setSocialSearch}
+        onSendRequest={handleSendRequest}
+        onAcceptFriend={handleAcceptFriend}
+        onDeclineFriend={handleDeclineFriend}
+        onCancelRequest={handleCancelRequest}
+        onAcceptInvitation={handleAcceptInvitation}
+        onDeclineInvitation={handleDeclineInvitation}
+        onOpenJoin={() => setModal('join')}
+        onOpenList={id => setSelectedId(id)}
+        onRetryFriends={() => {
+          if (session) void reloadSocial(session.user.id);
+        }}
+      />}
       {tab === 'settings' && <SettingsScreen
         profile={{ email: session.user.email, displayName: profile?.displayName, username: profile?.username, avatarUrl: profile?.avatarUrl }}
         plan={profile ? { tier: profile.planTier ?? 'free', scansUsed: profile.aiScansUsedThisMonth ?? 0, scansLimit: profile.aiScansLimit ?? 0 } : undefined}
         purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
         preferences={preferences}
-        version="1.0.3"
+        version="1.0.4"
         onCheckUpdate={async () => {
           const res = await checkAppUpdate();
           if (res?.hasUpdate) {
             setUpdateInfo(res);
             setUpdateModalVisible(true);
           } else {
-            Alert.alert('Atualização', 'O aplicativo já está na versão mais recente (v1.0.3)!');
+            Alert.alert('Atualização', 'O aplicativo já está na versão mais recente (v1.0.4)!');
           }
         }}
         onChangePreferences={next => { setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : current); void updatePreferences(next, session.user.id).catch(errorMessage); }}
@@ -289,7 +418,7 @@ export default function App() {
       />}
     </View>
     <View style={[styles.dockContainer, { paddingBottom: Math.max(insets.bottom, 10) }]} pointerEvents="box-none">
-      <View style={styles.dock}>
+      <View style={[styles.dock, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
         {([
           { id: 'lists', label: 'Listas', icon: 'list' },
           { id: 'stores', label: 'Locais', icon: 'store' },
@@ -305,7 +434,7 @@ export default function App() {
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={entry.label}
           >
-            <CanetoIcon name={entry.icon} size={20} color={isActive ? '#FFFFFF' : '#64748B'} />
+            <CanetoIcon name={entry.icon} size={20} color={isActive ? '#FFFFFF' : isDark ? '#94A3B8' : '#64748B'} />
             {isActive && <NativeText numberOfLines={1} style={styles.dockActiveText}>{entry.label}</NativeText>}
           </Pressable>;
         })}
@@ -341,7 +470,10 @@ export default function App() {
     <ListEditModal list={modal === 'list' ? modalList?.domain ?? null : null} onClose={() => setModal(null)}
       trashCount={modalList ? getValidTrash(modalList.id).length : 0}
       onOpenTrash={list => { setSelectedId(list.id); setModal('trash'); }}
-      onSave={(list, changes) => mutate(() => renameList(list.id, changes.name, changes.storeName ?? ''), false)}
+      onSave={async (list, changes) => {
+        await renameList(list.id, changes.name, changes.storeName ?? '');
+        if (session) await refresh(session.user.id);
+      }}
       onShare={list => { setModalListId(list.id); setModal('share'); }}
       onDuplicate={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => duplicateList(legacy, session.user.id), false); }}
       onDelete={list => mutate(async () => { await removeList(list.id); if (selectedId === list.id) setSelectedId(null); }, false)}

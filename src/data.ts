@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { canetoData } from './core/data/supabaseAdapter';
 import type { ShoppingList } from './core/models/caneto';
 import { generateUUID, getErrorMessage } from './ui/error';
+import { parseQuickItemInput } from './core/categories';
 
 export function createListPayload(options: {
   id?: string;
@@ -103,14 +104,23 @@ export async function createList(userId: string, name: string): Promise<string> 
   return payload.id;
 }
 
-export async function addItem(userId: string, listId: string, name: string): Promise<void> {
-  const cleanName = name.trim();
-  if (!cleanName) throw new Error('Informe o nome do produto.');
+export async function addItem(userId: string, listId: string, rawInput: string): Promise<void> {
+  const cleanInput = rawInput.trim();
+  if (!cleanInput) throw new Error('Informe o nome do produto.');
+  const parsed = parseQuickItemInput(cleanInput);
   const now = Date.now();
   const { error } = await supabase.from('items').insert({
-    id: generateUUID(), list_id: listId, user_id: userId, name: cleanName,
-    category_id: 'other', quantity: 1, unit: 'un', checked: false,
-    created_at: now, updated_at: now,
+    id: generateUUID(),
+    list_id: listId,
+    user_id: userId,
+    name: parsed.name,
+    category_id: parsed.categoryId,
+    quantity: parsed.quantity,
+    unit: parsed.unit,
+    price: parsed.price ?? null,
+    checked: false,
+    created_at: now,
+    updated_at: now,
   });
   if (error) throw new Error(getErrorMessage(error));
   await supabase.from('lists').update({ updated_at: now }).eq('id', listId);

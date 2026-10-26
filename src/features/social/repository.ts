@@ -176,16 +176,50 @@ async function ownUsername(userId: string): Promise<string> {
 
 type SearchRow = { id: string; username: string; display_name: string | null; avatar_url: string | null };
 
-/** Approximate search uses the same privacy-aware RPC as SocialTab.tsx. */
+/** Approximate search uses the same privacy-aware RPC as SocialTab.tsx with direct profiles fallback. */
 export async function searchSocialUsers(userId: string, term: string): Promise<SocialSearchResult[]> {
   await currentUser(userId);
   const query = cleanUsername(term);
   if (query.length < 2) return [];
-  const { data, error } = await supabase.rpc('search_users_approximate', {
-    search_term: query, current_user_id: userId,
-  });
-  if (error) throw error;
-  const matches = ((data ?? []) as SearchRow[]).filter(row => row.id !== userId);
+
+  let matches: SearchRow[] = [];
+
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('search_users_approximate', {
+      search_term: query, current_user_id: userId,
+    });
+    if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+      matches = (rpcData as SearchRow[]).filter(row => row.id !== userId);
+    }
+  } catch (rpcErr) {
+    console.warn('search_users_approximate RPC failed, using profiles fallback:', rpcErr);
+  }
+
+  // Fallback se RPC não retornou resultados ou falhou
+  if (!matches.length) {
+    const clean = query.toLowerCase().replace(/[,()]/g, '');
+    const noAccents = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const terms = Array.from(new Set([clean, noAccents].filter(t => t.length >= 2)));
+    if (terms.length > 0) {
+      const orConditions = terms.flatMap(t => [
+        `username.ilike.%${t}%`,
+        `display_name.ilike.%${t}%`,
+        `email.ilike.%${t}%`,
+      ]).join(',');
+
+      const { data: fallbackData } = await supabase
+        .from('profiles')
+        .select('id,username,display_name,avatar_url')
+        .or(orConditions)
+        .neq('id', userId)
+        .limit(20);
+
+      if (fallbackData && fallbackData.length > 0) {
+        matches = fallbackData as SearchRow[];
+      }
+    }
+  }
+
   if (!matches.length) return [];
   const { data: relationships, error: relationError } = await supabase.from('friendships')
     .select('user_id,friend_id,friend_username,status').limit(300);
@@ -220,9 +254,11 @@ export async function sendFriendRequest(userId: string, targetUserId: string): P
     supabase.from('public_profiles').select('id,username,display_name').eq('id', targetUserId).maybeSingle(),
     supabase.from('profiles').select('username,display_name').eq('id', userId).maybeSingle(),
   ]);
-  if (targetResult.error) throw targetResult.error;
-  if (ownResult.error) throw ownResult.error;
-  const target = targetResult.data;
+  let target = targetResult.data;
+  if (!target) {
+    const { data: fallbackProfile } = await supabase.from('profiles').select('id,username,display_name').eq('id', targetUserId).maybeSingle();
+    target = fallbackProfile;
+  }
   if (!target?.id || !target.username) throw new Error('Perfil não encontrado no Caneto.');
   if (!ownResult.data?.username) throw new Error('Defina seu @usuário no perfil antes de enviar convites.');
   const existing = await findFriendship(userId, target.id, cleanUsername(target.username));

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
@@ -31,51 +31,91 @@ function ListEditDialog({ list, trashCount, onOpenTrash, onClose, onSave, onShar
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const own = list.permission === 'owner';
+  const canEdit = own || list.permission === 'editor';
+
   const run = async (operation: () => MaybePromise, close = false) => {
     if (busy) return;
-    try { setBusy(true); setError(''); await operation(); if (close) onClose(); }
-    catch (cause) { setError(getErrorMessage(cause)); }
-    finally { setBusy(false); }
+    try {
+      setBusy(true);
+      setError('');
+      await operation();
+      if (close) onClose();
+    } catch (cause) {
+      setError(getErrorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
   };
+
   const save = () => {
     const trimmed = name.trim();
     if (!trimmed) { setError('Informe o nome da lista.'); return; }
     void run(() => onSave(list, { name: trimmed, storeName: store.trim() || undefined }), true);
   };
+
   const confirmDelete = () => Alert.alert('Excluir lista?', `A lista “${list.name}” e seus itens serão removidos.`, [
     { text: 'Cancelar', style: 'cancel' },
     { text: 'Excluir', style: 'destructive', onPress: () => void run(() => onDelete(list), true) },
   ]);
+
   return <ModalSheet visible title="Editar Lista" subtitle="Nome, estabelecimento e ações" onClose={onClose}>
-    {own && <>
+    {canEdit && <View style={styles.form}>
       <AppField label="Nome da lista" value={name} onChangeText={setName} placeholder="Ex: Compras do Mês" maxLength={80} autoFocus />
       <AppField label="Supermercado / Estabelecimento (Opcional)" value={store} onChangeText={setStore} placeholder="Ex: Carrefour" maxLength={120} />
-      <AppButton label="Salvar alterações" loading={busy} disabled={!name.trim()} onPress={save} />
-    </>}
-    <View style={styles.actions}>
-      {own && <AppButton label="Compartilhar" variant="secondary" icon={<Ionicons name="share-social-outline" size={18} color={theme.ink} />} disabled={busy} onPress={() => { onClose(); void onShare(list); }} style={styles.action} />}
-      <AppButton label="Duplicar" variant="secondary" icon={<Ionicons name="copy-outline" size={18} color={theme.ink} />} disabled={busy} onPress={() => void run(() => onDuplicate(list), true)} style={styles.action} />
-      {onOpenTrash && !list.isCompleted && list.permission !== 'viewer' && (
-        <AppButton
-          label={`Lixeira${trashCount && trashCount > 0 ? ` (${trashCount})` : ''}`}
-          variant="secondary"
-          icon={<Ionicons name="trash-outline" size={18} color={theme.ink} />}
-          disabled={busy}
-          onPress={() => { onClose(); onOpenTrash(list); }}
-          style={styles.action}
-        />
+      <AppButton label="Salvar alterações" loading={busy} disabled={!name.trim()} onPress={save} style={styles.saveButton} />
+    </View>}
+
+    <View style={styles.actionList}>
+      {own && (
+        <Pressable style={styles.actionRow} onPress={() => { onClose(); void onShare(list); }} disabled={busy} accessibilityRole="button" accessibilityLabel="Compartilhar lista">
+          <Ionicons name="share-social-outline" size={20} color={theme.blue} />
+          <AppText style={styles.actionRowText}>Compartilhar lista</AppText>
+          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
+        </Pressable>
       )}
-      {own && onComplete && <AppButton label={list.isCompleted ? 'Reabrir' : 'Finalizar'} variant="secondary" icon={<Ionicons name={list.isCompleted ? 'refresh-outline' : 'checkmark-circle-outline'} size={18} color={theme.ink} />} disabled={busy} onPress={() => { if (list.isCompleted) void run(() => onComplete(list), true); else { onClose(); void onComplete(list); } }} style={styles.action} />}
-      {own && <AppButton label="Excluir" variant="ghost" icon={<Ionicons name="trash-outline" size={18} color={theme.danger} />} disabled={busy} onPress={confirmDelete} textStyle={styles.dangerText} style={styles.action} />}
+      <Pressable style={styles.actionRow} onPress={() => void run(() => onDuplicate(list), true)} disabled={busy} accessibilityRole="button" accessibilityLabel="Duplicar lista">
+        <Ionicons name="copy-outline" size={20} color={theme.blue} />
+        <AppText style={styles.actionRowText}>Duplicar lista</AppText>
+        <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
+      </Pressable>
+      {onOpenTrash && !list.isCompleted && list.permission !== 'viewer' && (
+        <Pressable style={styles.actionRow} onPress={() => { onClose(); onOpenTrash(list); }} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir lixeira">
+          <Ionicons name="trash-outline" size={20} color={theme.blue} />
+          <AppText style={styles.actionRowText}>Lixeira{trashCount && trashCount > 0 ? ` (${trashCount})` : ''}</AppText>
+          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
+        </Pressable>
+      )}
+      {own && onComplete && (
+        <Pressable style={styles.actionRow} onPress={() => { if (list.isCompleted) void run(() => onComplete(list), true); else { onClose(); void onComplete(list); } }} disabled={busy} accessibilityRole="button" accessibilityLabel={list.isCompleted ? 'Reabrir lista' : 'Finalizar compra'}>
+          <Ionicons name={list.isCompleted ? 'refresh-outline' : 'checkmark-circle-outline'} size={20} color={theme.blue} />
+          <AppText style={styles.actionRowText}>{list.isCompleted ? 'Reabrir lista' : 'Finalizar compra'}</AppText>
+          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
+        </Pressable>
+      )}
+      {own && (
+        <Pressable style={styles.actionRow} onPress={confirmDelete} disabled={busy} accessibilityRole="button" accessibilityLabel="Excluir lista">
+          <Ionicons name="trash-outline" size={20} color={theme.danger} />
+          <AppText style={[styles.actionRowText, styles.dangerText]}>Excluir lista</AppText>
+          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
+        </Pressable>
+      )}
     </View>
+
     {!!error && <AppText accessibilityRole="alert" style={styles.errorText}>{error}</AppText>}
-    <View style={styles.footer}><AppButton label="Cancelar" variant="ghost" onPress={onClose} disabled={busy} /></View>
+    <View style={styles.footer}>
+      <AppButton label="Fechar" variant="ghost" onPress={onClose} disabled={busy} style={styles.cancelButton} />
+    </View>
   </ModalSheet>;
 }
 
 const styles = StyleSheet.create({
-  actions: { borderTopWidth: 1, borderColor: theme.border, marginTop: 18, paddingTop: 15, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  action: { paddingHorizontal: 12 }, dangerText: { color: theme.danger },
-  errorText: { color: theme.danger, marginTop: 12 },
-  footer: { marginTop: 15, alignItems: 'flex-end' },
+  form: { marginBottom: 12 },
+  saveButton: { width: '100%', minHeight: 48, marginTop: 4 },
+  actionList: { borderTopWidth: 1, borderColor: theme.border, marginTop: 14, paddingTop: 6 },
+  actionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: 1, borderColor: theme.border },
+  actionRowText: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15 },
+  dangerText: { color: theme.danger },
+  errorText: { color: theme.danger, marginTop: 12, fontFamily: theme.font.semibold, fontSize: 13 },
+  footer: { marginTop: 14, alignItems: 'center' },
+  cancelButton: { width: '100%', minHeight: 44 },
 });

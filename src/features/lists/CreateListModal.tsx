@@ -45,8 +45,8 @@ function CreateListDialog({ listCount, onClose, onCreate, onJoinList, onScanList
           </View>}
           <TextInput value={name} onChangeText={setName} placeholder={`Ex: ${defaultName}`} placeholderTextColor={theme.placeholder} accessibilityLabel="Nome da nova lista" autoFocus maxLength={80} returnKeyType="done" onSubmitEditing={() => void run(() => onCreate(name.trim() || defaultName))} style={styles.input} />
           <View style={styles.footer}>
-            <AppButton label="Fechar" variant="secondary" icon={<Ionicons name="close" size={17} color={theme.ink} />} disabled={busy} onPress={onClose} />
-            <AppButton label="Criar Lista" icon={<Ionicons name="add" size={18} color={theme.surface} />} loading={busy} onPress={() => void run(() => onCreate(name.trim() || defaultName))} />
+            <AppButton label="Fechar" variant="secondary" icon={<Ionicons name="close" size={17} color={theme.ink} />} disabled={busy} onPress={onClose} style={styles.footerButton} />
+            <AppButton label="Criar Lista" icon={<Ionicons name="add" size={18} color={theme.surface} />} loading={busy} onPress={() => void run(() => onCreate(name.trim() || defaultName))} style={styles.footerButton} />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -60,5 +60,6 @@ const styles = StyleSheet.create({
   panel: { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, borderRadius: 24, padding: 20, gap: 16, elevation: 16 },
   shortcutRow: { flexDirection: 'row', gap: 10 }, shortcut: { flex: 1, minHeight: 52, paddingHorizontal: 7 },
   input: { minHeight: 54, borderRadius: 16, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, paddingHorizontal: 16, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 16 },
-  footer: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' },
+  footer: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  footerButton: { flex: 1, minHeight: 48 },
 });

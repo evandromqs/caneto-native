@@ -2,16 +2,17 @@
   "expo": {
     "name": "Caneto",
     "slug": "caneto-native",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "caneto",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.evandromqs.caneto",
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#0943F1",
         "foregroundImage": "./assets/android-icon-foreground.png",

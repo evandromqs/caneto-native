@@ -4,6 +4,7 @@ import { itemFromRow, listFromRow, profileFromRow, purchaseFromRow, storePriceFr
 import type { ItemRow, ListMembershipRow, ListRow, ProfileRow, PurchaseRow, StorePriceRow, StoreSubmissionRow } from './rows';
 import { generateUUID, getErrorMessage } from '../../ui/error';
 import { createListPayload } from '../../data';
+import { parseQuickItemInput } from '../categories';
 
 const LIST_COLUMNS = 'id,user_id,name,icon,color,is_default,share_code,permission,access_mode,budget,store_id,store_name,store_address,is_completed,completed_at,payment_method,receipt_photo_url,receipt_qr_code,receipt_key,total_spent,detected_items_total,pending_receipt,created_at,updated_at';
 const ITEM_COLUMNS = 'id,list_id,user_id,name,category_id,quantity,unit,price,checked,notes,photo_url,label_photo_url,ean,brand,created_at,updated_at,checked_at';
@@ -100,11 +101,12 @@ export const canetoData = {
     if (list.permission === 'viewer') throw new Error('Você tem acesso somente para leitura.');
     const cleanName = name.trim();
     if (!cleanName) throw new Error('Informe o nome do produto.');
+    const parsed = parseQuickItemInput(cleanName);
     const id = generateUUID();
     const now = Date.now();
     const { error } = await supabase.from('items').insert({
-      id, list_id: list.id, user_id: userId, name: cleanName, category_id: 'other',
-      quantity: 1, unit: 'un', checked: false, created_at: now, updated_at: now,
+      id, list_id: list.id, user_id: userId, name: parsed.name, category_id: parsed.categoryId,
+      quantity: parsed.quantity, unit: parsed.unit, price: parsed.price ?? null, checked: false, created_at: now, updated_at: now,
     });
     if (error) throw new Error(getErrorMessage(error));
     // A política de listas permite atualizar o relógio apenas ao dono.

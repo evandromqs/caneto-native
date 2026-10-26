@@ -139,7 +139,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.background }, content: { gap: 14, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 104 }, card: { borderRadius: 18, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, padding: 16, gap: 11 }, planCard: { backgroundColor: '#F4F7FF' },
+  root: { flex: 1, backgroundColor: theme.background }, content: { gap: 14, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 124 }, card: { borderRadius: 18, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, padding: 16, gap: 11 }, planCard: { backgroundColor: '#F4F7FF' },
   flex: { flex: 1, minWidth: 0 }, topRow: { flexDirection: 'row', alignItems: 'center', gap: 11 }, cardHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 7 }, headingLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 }, sectionTitle: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 15 },
   planImage: { width: 46, height: 46 }, profileName: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 16 }, profileSubtitle: { color: theme.subtle, fontFamily: theme.font.regular, fontSize: 13 }, planActive: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 11 },
   avatar: { width: 54, height: 54, borderRadius: 16, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: 54, height: 54 }, avatarLetter: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 23 },

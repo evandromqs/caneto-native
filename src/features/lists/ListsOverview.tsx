@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import { listCapabilities } from '../../core/models/caneto';
@@ -34,6 +35,7 @@ const sortOptions: readonly { value: ListsSortBy; label: string }[] = [
 ];
 
 export function ListsOverview(props: ListsOverviewProps) {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ListsSubTab>('active');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<ListsSortBy>('recent');
@@ -64,7 +66,7 @@ export function ListsOverview(props: ListsOverviewProps) {
         catch (error) { Alert.alert('Não foi possível atualizar', getErrorMessage(error)); }
         finally { setRefreshing(false); }
       } : undefined}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 12) + 120 }]}
       keyboardShouldPersistTaps="handled"
       stickyHeaderIndices={[0]}
       ListHeaderComponent={<View style={styles.top}>
@@ -82,7 +84,7 @@ export function ListsOverview(props: ListsOverviewProps) {
       ListEmptyComponent={<EmptyState tab={tab} search={search} filtered={sortBy !== 'recent'} onClearSearch={() => setSearch('')} onClearSort={() => setSortBy('recent')} />}
       renderItem={({ item }) => <ListCard list={item} ownerName={props.ownerNameById?.[item.ownerId]} active={item.id === props.activeListId} onPress={() => void execute(() => props.onSelectList(item))} onOptions={() => setActionList(item)} />}
     />
-    <View style={styles.floating} pointerEvents="box-none">
+    <View style={[styles.floating, { bottom: Math.max(insets.bottom, 12) + 76 }]} pointerEvents="box-none">
       <AppButton label="Nova lista" icon={<Ionicons name="add" size={21} color={theme.surface} />} onPress={() => setCreating(true)} style={styles.newList} />
     </View>
     <ModalSheet visible={filterOpen} title="Filtrar Listas" onClose={() => setFilterOpen(false)}>

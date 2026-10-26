@@ -176,7 +176,7 @@ function RankingContent({ ranking, onOpenPerson }: { ranking: RankingSummary; on
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.background }, content: { gap: 14, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 104 },
+  root: { flex: 1, backgroundColor: theme.background }, content: { gap: 14, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 124 },
   segmentWrap: { alignItems: 'center' }, segment: { width: '100%', backgroundColor: '#E7E9ED', borderColor: theme.border, borderWidth: 1, borderRadius: 17, flexDirection: 'row', padding: 5, gap: 5 },
   segmentButton: { flex: 1, minHeight: 42, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, segmentActive: { backgroundColor: theme.blue }, segmentText: { fontFamily: theme.font.bold, fontSize: 15, color: theme.ink }, segmentTextActive: { color: '#FFFFFF' },
   badge: { backgroundColor: '#DCE5F8', paddingHorizontal: 7, borderRadius: 20, minWidth: 22, alignItems: 'center' }, badgeActive: { backgroundColor: '#FFFFFF' }, badgeText: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 11 }, badgeTextActive: { color: theme.blue },
