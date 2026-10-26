@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text as NativeText, TextInput, View, type TextProps } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from '@expo-google-fonts/poppins';
 import type { Session } from '@supabase/supabase-js';
 import { addItem, createList, loadLists, setItemChecked, type Item, type List } from './src/data';
@@ -29,13 +29,16 @@ import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
+import { checkAppUpdate, type AppReleaseInfo } from './src/features/updater/updaterService';
+import { UpdateModal } from './src/features/updater/UpdateModal';
 
 const green = theme.blue;
 const errorMessage = (error: unknown) => Alert.alert('Não foi possível continuar', getErrorMessage(error));
 const Text = ({ style, ...props }: TextProps) => <NativeText {...props} style={[{ fontFamily: theme.font.regular }, style]} />;
 
 export default function App() {
-  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold });
+  const insets = useSafeAreaInsets();
+  const [fontsLoaded, fontError] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold });
   const [session, setSession] = useState<Session | null>(null);
   const [starting, setStarting] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -55,9 +58,20 @@ export default function App() {
   const [modalItemId, setModalItemId] = useState<string | null>(null);
   const [deletedToastItem, setDeletedToastItem] = useState<ShoppingItem | null>(null);
   const [trashItems, setTrashItems] = useState<DeletedShoppingItem[]>([]);
+  const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
+  const [updateModalVisible, setUpdateModalVisible] = useState(false);
   const pendingDeletedItemRef = useRef<{ item: ShoppingItem; listId: string } | null>(null);
 
   const refresh = useCallback(async (userId: string) => setLists(await loadLists(userId)), []);
+
+  useEffect(() => {
+    checkAppUpdate().then(info => {
+      if (info?.hasUpdate) {
+        setUpdateInfo(info);
+        setUpdateModalVisible(true);
+      }
+    }).catch(console.warn);
+  }, []);
 
   useEffect(() => {
     if (selectedId) setTrashItems(getValidTrash(selectedId));
@@ -186,7 +200,7 @@ export default function App() {
     vibration: profile.preferences.vibration ?? true,
     soundEffects: profile.preferences.soundEffects ?? true,
   } : undefined;
-  if (starting || !fontsLoaded) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color={green} /></SafeAreaView>;
+  if (starting || (!fontsLoaded && !fontError)) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color={green} /></SafeAreaView>;
   if (!session) return <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="dark-content" translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior="padding"><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
     <View style={styles.brandRow}><Image source={require('./assets/logo.webp')} style={styles.brandLogo} /><Text style={styles.brand}>Caneto<Text style={styles.tm}>™</Text></Text></View>
     <Text style={styles.tagline}>Caneto - A lista que te entende</Text>
@@ -201,7 +215,7 @@ export default function App() {
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 
-  return <SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />{selected?.domain ? <ShoppingListScreen
+  return <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}><StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />{selected?.domain ? <ShoppingListScreen
     list={selected.domain}
     busy={busy}
     onBack={() => {
@@ -219,51 +233,85 @@ export default function App() {
     deletedToastItem={deletedToastItem}
     onUndoDelete={handleUndoDelete}
     onDismissDeleteToast={handleCommitDelete}
-  /> : <>
-    {tab === 'lists' && <ListsOverview
-      lists={lists.map(list => list.domain).filter((list): list is ShoppingList => !!list)}
-      activeListId={selectedId ?? undefined}
-      onSelectList={list => setSelectedId(list.id)}
-      onCreateList={async name => {
-        const cleanName = name.trim();
-        const id = await createList(session.user.id, cleanName);
-        const now = Date.now();
-        const newListDomain: ShoppingList = {
-          id, ownerId: session.user.id, permission: 'owner', name: cleanName,
-          icon: 'ShoppingCart', color: 'emerald', isDefault: false,
-          accessMode: 'private', isCompleted: false, pendingReceipt: false, createdAt: now, updatedAt: now, items: [],
-        };
-        const newListLegacy: List = {
-          id, name: cleanName, color: 'emerald', user_id: session.user.id,
-          is_completed: false, created_at: now, updated_at: now, items: [], domain: newListDomain,
-        };
-        setLists(prev => [newListLegacy, ...prev.filter(l => l.id !== id)]);
-        setSelectedId(id);
-        void refresh(session.user.id).catch(console.warn);
-      }}
-      onEditList={list => { setModalListId(list.id); setModal('list'); }}
-      onShareList={list => { setModalListId(list.id); setModal('share'); }}
-      onDuplicateList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => duplicateList(legacy, session.user.id), false); }}
-      onDeleteList={async list => { await mutate(async () => { await removeList(list.id); if (selectedId === list.id) setSelectedId(null); }, false); }}
-      onReopenList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => setListCompleted(legacy, false), false); }}
-      onRenameList={async (list, name) => mutate(() => renameList(list.id, name, list.storeName ?? ''), false)}
-      onJoinList={() => setModal('join')}
-      onRefresh={() => refresh(session.user.id)}
-    />}
-    {tab === 'stores' && <StoreExplorer />}
-    {tab === 'social' && <SocialScreen {...(socialData ?? { friends: [] })} friendsLoading={socialLoading} friendsError={socialError} onOpenJoin={() => setModal('join')} onOpenList={id => setSelectedId(id)} onRetryFriends={() => { setSocialData(null); void loadSocialData(session.user.id, { lists }).then(setSocialData).then(() => setSocialError(false)).catch(errorMessage); }} />}
-    {tab === 'settings' && <SettingsScreen
-      profile={{ email: session.user.email, displayName: profile?.displayName, username: profile?.username, avatarUrl: profile?.avatarUrl }}
-      plan={profile ? { tier: profile.planTier ?? 'free', scansUsed: profile.aiScansUsedThisMonth ?? 0, scansLimit: profile.aiScansLimit ?? 0 } : undefined}
-      purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
-      preferences={preferences}
-      onChangePreferences={next => { setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : current); void updatePreferences(next, session.user.id).catch(errorMessage); }}
-      onOpenProfile={() => setModal('profile')}
-      onOpenHistory={() => setModal('history')}
-      onSignOut={() => { void supabase.auth.signOut(); }}
-    />}
-    <View style={styles.dock}>{([{ id: 'lists', label: 'Listas', icon: 'list' }, { id: 'stores', label: 'Locais', icon: 'store' }, { id: 'social', label: 'Social', icon: 'social' }, { id: 'settings', label: 'Ajustes', icon: 'settings' }] as const).map(entry => <Pressable key={entry.id} style={[styles.dockButton, tab === entry.id && styles.dockActive]} onPress={() => setTab(entry.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === entry.id }} accessibilityLabel={entry.label}><CanetoIcon name={entry.icon} size={20} color={tab === entry.id ? 'white' : '#475569'} />{tab === entry.id && <Text style={styles.dockActiveText}>{entry.label}</Text>}</Pressable>)}</View>
-  </>}
+  /> : <View style={styles.tabContentContainer}>
+    <View style={styles.screenArea}>
+      {tab === 'lists' && <ListsOverview
+        lists={lists.map(list => list.domain).filter((list): list is ShoppingList => !!list)}
+        activeListId={selectedId ?? undefined}
+        onSelectList={list => setSelectedId(list.id)}
+        onCreateList={async name => {
+          const cleanName = name.trim();
+          const id = await createList(session.user.id, cleanName);
+          const now = Date.now();
+          const newListDomain: ShoppingList = {
+            id, ownerId: session.user.id, permission: 'owner', name: cleanName,
+            icon: 'ShoppingCart', color: 'emerald', isDefault: false,
+            accessMode: 'private', isCompleted: false, pendingReceipt: false, createdAt: now, updatedAt: now, items: [],
+          };
+          const newListLegacy: List = {
+            id, name: cleanName, color: 'emerald', user_id: session.user.id,
+            is_completed: false, created_at: now, updated_at: now, items: [], domain: newListDomain,
+          };
+          setLists(prev => [newListLegacy, ...prev.filter(l => l.id !== id)]);
+          setSelectedId(id);
+          void refresh(session.user.id).catch(console.warn);
+        }}
+        onEditList={list => { setModalListId(list.id); setModal('list'); }}
+        onShareList={list => { setModalListId(list.id); setModal('share'); }}
+        onDuplicateList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => duplicateList(legacy, session.user.id), false); }}
+        onDeleteList={async list => { await mutate(async () => { await removeList(list.id); if (selectedId === list.id) setSelectedId(null); }, false); }}
+        onReopenList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => setListCompleted(legacy, false), false); }}
+        onRenameList={async (list, name) => mutate(() => renameList(list.id, name, list.storeName ?? ''), false)}
+        onJoinList={() => setModal('join')}
+        onRefresh={() => refresh(session.user.id)}
+      />}
+      {tab === 'stores' && <StoreExplorer />}
+      {tab === 'social' && <SocialScreen {...(socialData ?? { friends: [] })} friendsLoading={socialLoading} friendsError={socialError} onOpenJoin={() => setModal('join')} onOpenList={id => setSelectedId(id)} onRetryFriends={() => { setSocialData(null); void loadSocialData(session.user.id, { lists }).then(setSocialData).then(() => setSocialError(false)).catch(errorMessage); }} />}
+      {tab === 'settings' && <SettingsScreen
+        profile={{ email: session.user.email, displayName: profile?.displayName, username: profile?.username, avatarUrl: profile?.avatarUrl }}
+        plan={profile ? { tier: profile.planTier ?? 'free', scansUsed: profile.aiScansUsedThisMonth ?? 0, scansLimit: profile.aiScansLimit ?? 0 } : undefined}
+        purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
+        preferences={preferences}
+        version="1.0.3"
+        onCheckUpdate={async () => {
+          const res = await checkAppUpdate();
+          if (res?.hasUpdate) {
+            setUpdateInfo(res);
+            setUpdateModalVisible(true);
+          } else {
+            Alert.alert('Atualização', 'O aplicativo já está na versão mais recente (v1.0.3)!');
+          }
+        }}
+        onChangePreferences={next => { setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : current); void updatePreferences(next, session.user.id).catch(errorMessage); }}
+        onOpenProfile={() => setModal('profile')}
+        onOpenHistory={() => setModal('history')}
+        onSignOut={() => { void supabase.auth.signOut(); }}
+      />}
+    </View>
+    <View style={[styles.dockContainer, { paddingBottom: Math.max(insets.bottom, 10) }]} pointerEvents="box-none">
+      <View style={styles.dock}>
+        {([
+          { id: 'lists', label: 'Listas', icon: 'list' },
+          { id: 'stores', label: 'Locais', icon: 'store' },
+          { id: 'social', label: 'Social', icon: 'social' },
+          { id: 'settings', label: 'Ajustes', icon: 'settings' },
+        ] as const).map(entry => {
+          const isActive = tab === entry.id;
+          return <Pressable
+            key={entry.id}
+            style={[styles.dockButton, isActive && styles.dockActive]}
+            onPress={() => setTab(entry.id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={entry.label}
+          >
+            <CanetoIcon name={entry.icon} size={20} color={isActive ? '#FFFFFF' : '#64748B'} />
+            {isActive && <NativeText numberOfLines={1} style={styles.dockActiveText}>{entry.label}</NativeText>}
+          </Pressable>;
+        })}
+      </View>
+    </View>
+  </View>}
     <NewListModal visible={modal === 'new'} busy={busy} onClose={() => setModal(null)} onCreate={async name => {
       if (!session) return;
       setBusy(true);
@@ -337,11 +385,13 @@ export default function App() {
         setTrashItems([]);
       }}
     />
+    <UpdateModal visible={updateModalVisible} updateInfo={updateInfo} onClose={() => setUpdateModalVisible(false)} />
   </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F8FAFC' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1 },
+  tabContentContainer: { flex: 1, position: 'relative' }, screenArea: { flex: 1 },
   listBackRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 10 }, listBackName: { flex: 1, color: '#0F172A', fontSize: 17, fontFamily: 'Poppins_700Bold' }, itemEditButton: { padding: 8, marginLeft: 3 }, optionsButton: { padding: 7, marginRight: -7 },
   socialJoin: { backgroundColor: green, borderRadius: 14, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 18 },
   auth: { flexGrow: 1, justifyContent: 'center', padding: 22 }, brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 38 }, brandLogo: { width: 42, height: 42, marginRight: 9 }, brand: { color: '#020817', fontSize: 29, fontFamily: theme.font.extrabold }, tm: { color: green, fontSize: 13 }, tagline: { color: green, fontSize: 14, fontFamily: theme.font.bold, marginBottom: 8 }, authDescription: { color: '#475569', fontSize: 16, marginBottom: 22 }, authCard: { backgroundColor: 'white', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 26, padding: 20 }, fieldLabel: { color: '#1E293B', fontSize: 14, fontFamily: theme.font.bold, marginBottom: 7 }, title: { color: '#020817', fontSize: 30, fontFamily: theme.font.extrabold, marginBottom: 8 }, muted: { color: '#475569', fontSize: 13 }, mutedLine: { color: '#475569', fontSize: 15, marginHorizontal: 22, marginBottom: 14 },
@@ -349,6 +399,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 22 }, overline: { color: green, fontSize: 12, fontFamily: theme.font.extrabold, letterSpacing: 2 }, round: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E8EEFF', alignItems: 'center', justifyContent: 'center' }, roundText: { color: green, fontSize: 25 }, segment: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#F1F5F9', borderRadius: 13, padding: 4 }, segmentButton: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10 }, segmentActive: { backgroundColor: green }, authSegmentActive: { backgroundColor: 'white', elevation: 2 }, authSegmentText: { color: green }, segmentText: { color: '#475569', fontFamily: theme.font.bold }, segmentActiveText: { color: 'white' }, content: { paddingHorizontal: 18, paddingBottom: 80 }, empty: { textAlign: 'center', color: '#64748B', marginTop: 70, fontSize: 16 }, card: { backgroundColor: 'white', borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' }, cardIcon: { backgroundColor: '#E8EEFF', borderRadius: 14, width: 52, height: 52, alignItems: 'center', justifyContent: 'center', marginRight: 14 }, cardEmoji: { fontSize: 24 }, cardTitle: { color: '#0F172A', fontSize: 17, fontFamily: theme.font.bold, marginBottom: 4 }, arrow: { color: '#94A3B8', fontSize: 28 },
   item: { backgroundColor: 'white', borderRadius: 15, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 8 }, check: { width: 26, height: 26, borderWidth: 2, borderColor: '#9AADE9', borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 }, checked: { backgroundColor: green, borderColor: green }, checkText: { color: 'white', fontFamily: theme.font.extrabold }, itemText: { flex: 1, color: '#0F172A', fontSize: 16, fontFamily: theme.font.semibold }, done: { textDecorationLine: 'line-through', color: '#64748B' }, composer: { flexDirection: 'row', backgroundColor: 'white', padding: 12, alignItems: 'center' }, plus: { width: 50, height: 50, backgroundColor: green, alignItems: 'center', justifyContent: 'center', borderRadius: 14, marginLeft: 6 }, plusText: { color: 'white', fontSize: 26 },
   landing: { paddingHorizontal: 18, paddingBottom: 36 }, landingHeader: { minHeight: 74, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, headerAction: { backgroundColor: green, borderRadius: 11, paddingHorizontal: 15, paddingVertical: 10 }, headerActionText: { color: 'white', fontSize: 14, fontFamily: theme.font.bold }, heroTitle: { color: '#020817', fontSize: 35, lineHeight: 40, fontFamily: theme.font.extrabold, letterSpacing: -1.2, textAlign: 'center', marginTop: 24 }, heroSubtitle: { color: '#475569', fontSize: 17, lineHeight: 25, textAlign: 'center', marginTop: 17 }, heroActions: { marginTop: 25, gap: 11 }, heroPrimary: { marginTop: 0 }, heroSecondary: { padding: 15, alignItems: 'center', borderRadius: 13, borderWidth: 1, borderColor: '#A8BDFD', backgroundColor: 'white' }, heroSecondaryText: { color: green, fontSize: 16, fontFamily: theme.font.bold }, demoCard: { marginTop: 30, padding: 20, backgroundColor: 'white', borderRadius: 28, borderWidth: 1, borderColor: '#E2E8F0', elevation: 3 }, demoEyebrow: { color: green, fontFamily: theme.font.extrabold, fontSize: 12, letterSpacing: 1.5 }, demoTitle: { color: '#0F172A', fontSize: 22, fontFamily: theme.font.extrabold, marginTop: 5, marginBottom: 20 }, demoComposer: { flexDirection: 'row', alignItems: 'center' }, demoInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', padding: 14, borderRadius: 13, fontSize: 15 }, demoItem: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#F8FAFC', borderRadius: 15, marginBottom: 14 }, demoHint: { color: '#475569', lineHeight: 22, marginBottom: 12 }, benefits: { marginTop: 30, gap: 13 }, benefit: { color: '#334155', fontSize: 15, fontFamily: theme.font.semibold }, authBack: { color: green, fontFamily: theme.font.bold, fontSize: 15, marginBottom: 28 },
-  dock: { flexDirection: 'row', backgroundColor: 'rgba(15,23,42,0.10)', borderWidth: 1, borderColor: 'rgba(226,232,240,0.55)', borderRadius: 15, marginHorizontal: 10, marginBottom: 12, padding: 6, gap: 4, minHeight: 58, alignItems: 'center', justifyContent: 'space-between', elevation: 8 }, dockButton: { flex: 1, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 15, flexDirection: 'row', gap: 8 }, dockActive: { flex: 2.2, backgroundColor: green, borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)', elevation: 4 }, dockActiveText: { color: 'white', fontFamily: theme.font.semibold, fontSize: 16 },
+  dockContainer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, zIndex: 100 },
+  dock: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 22, padding: 6, gap: 6, minHeight: 58, alignItems: 'center', justifyContent: 'space-between', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 8 },
+  dockButton: { flex: 1, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 16, flexDirection: 'row', gap: 6, paddingHorizontal: 6 },
+  dockActive: { flex: 2.3, backgroundColor: '#0943F1', shadowColor: '#0943F1', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 3 },
+  dockActiveText: { color: '#FFFFFF', fontFamily: theme.font.semibold, fontSize: 14 },
 });
 

@@ -28,6 +28,7 @@ export type SettingsScreenProps = {
   onChangePreferences?: (next: SettingsPreferences) => void;
   onOpenChangelog?: () => void;
   onOpenOnboarding?: () => void;
+  onCheckUpdate?: () => void;
   onSignOut?: () => void;
 };
 
@@ -113,6 +114,20 @@ export function SettingsScreen(props: SettingsScreenProps) {
         {preference.notifications !== undefined && <ToggleRow icon="notifications-outline" title="Notificações" description="Avisos de alterações e listas compartilhadas" value={preference.notifications} onChange={props.onChangePreferences ? value => update('notifications', value) : undefined} />}
       </View></Card>
     </>}
+
+    <Card>
+      <SectionTitle>Atualização do Aplicativo</SectionTitle>
+      <View style={styles.aboutRow}>
+        <View style={styles.flex}>
+          <Text style={styles.toggleTitle}>Caneto™ v{props.version || '1.0.3'}</Text>
+          <Text style={styles.toggleDescription}>Verifique e instale novas versões direto do GitHub</Text>
+        </View>
+        {props.onCheckUpdate && <Pressable style={styles.proButton} onPress={props.onCheckUpdate} accessibilityRole="button">
+          <Ionicons name="cloud-download-outline" size={15} color="#FFFFFF" />
+          <Text style={styles.proButtonText}>Verificar</Text>
+        </Pressable>}
+      </View>
+    </Card>
 
     {(props.version || props.onOpenOnboarding || props.onOpenChangelog) && <Card><SectionTitle>Sobre o app</SectionTitle>
       {props.version && <View style={styles.aboutRow}><View style={styles.flex}><Text style={styles.toggleTitle}>Caneto™ {props.version}</Text>{props.buildDate && <Text style={styles.toggleDescription}>Atualizado em {props.buildDate}</Text>}</View>{props.onOpenChangelog && <Pressable style={styles.proButton} onPress={props.onOpenChangelog}><Text style={styles.proButtonText}>Novidades</Text><Ionicons name="arrow-forward" size={14} color="#FFFFFF" /></Pressable>}</View>}

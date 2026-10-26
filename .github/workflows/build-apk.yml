@@ -14,6 +14,10 @@ jobs:
   build-and-release:
     name: Build APK and Create Release
     runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL || 'https://huooiccnyprldwjdikvq.supabase.co' }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1b29pY2NueXBybGR3amRpa3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NzUyMDMsImV4cCI6MjEwMzQ1MTIwM30.6JPKVALiMIk178NQVak7uxLtJiNB3wNB6qw3kpklNwo' }}
+      EXPO_PUBLIC_CANETO_API_URL: ${{ secrets.EXPO_PUBLIC_CANETO_API_URL || 'https://caneto.online' }}
 
     steps:
       - name: Checkout repository
@@ -24,8 +28,8 @@ jobs:
       - name: Calculate Version & APK Naming
         id: versioning
         run: |
-          PKG_VERSION=$(node -p "require('./package.json').version || '1.0.0'")
-          MAJOR_MINOR=$(node -p "const parts = (require('./package.json').version || '1.0.0').split('.'); parts.slice(0, 2).join('.') || '1.0'")
+          PKG_VERSION=$(node -p "require('./package.json').version || '1.0.3'")
+          MAJOR_MINOR=$(node -p "const parts = (require('./package.json').version || '1.0.3').split('.'); parts.slice(0, 2).join('.') || '1.0'")
           RUN_NUM="${{ github.run_number }}"
           SHORT_SHA=$(git rev-parse --short HEAD)
 
@@ -60,6 +64,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create .env files for Metro Bundler
+        run: |
+          cat <<EOF > .env
+          EXPO_PUBLIC_SUPABASE_URL=${{ env.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ env.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_CANETO_API_URL=${{ env.EXPO_PUBLIC_CANETO_API_URL }}
+          EOF
+          cp .env .env.local
+          echo "Generated .env file:"
+          cat .env
+
       - name: Configure Keystore & Credentials
         run: |
           if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
@@ -93,14 +108,19 @@ jobs:
           EOF
 
       - name: Expo Prebuild
-        env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL || 'https://huooiccnyprldwjdikvq.supabase.co' }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1b29pY2NueXBybGR3amRpa3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NzUyMDMsImV4cCI6MjEwMzQ1MTIwM30.6JPKVALiMIk178NQVak7uxLtJiNB3wNB6qw3kpklNwo' }}
-          EXPO_PUBLIC_CANETO_API_URL: ${{ secrets.EXPO_PUBLIC_CANETO_API_URL || 'https://caneto.online' }}
         run: npx expo prebuild --platform android --clean
+
+      - name: Ensure .env is present in Android assets
+        run: |
+          mkdir -p android/app/src/main/assets
+          cp .env android/app/src/main/assets/.env || true
 
       - name: Build Android Release APK
         working-directory: android
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ env.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ env.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_CANETO_API_URL: ${{ env.EXPO_PUBLIC_CANETO_API_URL }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
@@ -138,14 +158,21 @@ jobs:
           RELEASE_NOTES="### 📱 Caneto Native $TAG
 
           - **Arquivo APK:** \`${{ steps.versioning.outputs.apk_name }}\`
+          - **Pacote:** \`com.evandromqs.caneto\`
           - **Commit:** \`${{ steps.versioning.outputs.short_sha }}\`
           - **Build:** \`#${{ steps.versioning.outputs.run_num }}\`
 
+          #### ✨ O que mudou:
+          - Correção definitiva de crash ao abrir o aplicativo (tratamento e injeção segura de chaves Supabase)
+          - Pacote atualizado para \`com.evandromqs.caneto\`
+          - Ícones e imagens oficiais importados do Caneto Web
+          - Redesign e correção visual da barra de navegação inferior flutuante (menu dock)
+          - Sistema integrado de atualização e instalação com 1 clique direto pelo app
+
           #### 📥 Como baixar e instalar:
-          1. Baixe o arquivo \`${{ steps.versioning.outputs.apk_name }}\` anexado nesta release no seu smartphone Android.
-          2. Abra o arquivo \`.apk\` baixado.
-          3. Caso o Android solicite permissão, autorize a instalação de fontes desconhecidas para o navegador/arquivos.
-          4. Conclua a instalação e abra o Caneto!"
+          1. Baixe o arquivo \`${{ steps.versioning.outputs.apk_name }}\` anexado nesta release no seu celular.
+          2. Abra o arquivo baixado para iniciar a instalação.
+          3. Caso o Android solicite permissão, autorize a instalação de fontes desconhecidas."
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists. Uploading new asset..."
