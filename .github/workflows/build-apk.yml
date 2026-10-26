@@ -1,0 +1,158 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build APK and Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate Version & APK Naming
+        id: versioning
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version || '1.0.0'")
+          MAJOR_MINOR=$(node -p "const parts = (require('./package.json').version || '1.0.0').split('.'); parts.slice(0, 2).join('.') || '1.0'")
+          RUN_NUM="${{ github.run_number }}"
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          RELEASE_TAG="v${MAJOR_MINOR}.${RUN_NUM}"
+          APK_NAME="caneto-${RELEASE_TAG}.apk"
+
+          echo "pkg_version=${PKG_VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
+          echo "apk_name=${APK_NAME}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "run_num=${RUN_NUM}" >> $GITHUB_OUTPUT
+
+          echo "Generated Tag: $RELEASE_TAG"
+          echo "Generated APK Name: $APK_NAME"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure Keystore & Credentials
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding release keystore from GitHub Secrets..."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+            KEY_PASS="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}"
+            ALIAS_PASS="${{ secrets.ANDROID_KEY_PASSWORD }}"
+          else
+            echo "Generating automated release keystore for CI builds..."
+            keytool -genkeypair -v -storetype PKCS12 -keystore release.keystore \
+              -alias caneto-key -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass caneto123 -keypass caneto123 \
+              -dname "CN=Caneto, OU=Mobile, O=Caneto, L=SaoPaulo, ST=SP, C=BR"
+            KEY_PASS="caneto123"
+            ALIAS="caneto-key"
+            ALIAS_PASS="caneto123"
+          fi
+
+          cat <<EOF > credentials.json
+          {
+            "android": {
+              "keystore": {
+                "keystorePath": "release.keystore",
+                "keystorePassword": "$KEY_PASS",
+                "keyAlias": "$ALIAS",
+                "keyPassword": "$ALIAS_PASS"
+              }
+            }
+          }
+          EOF
+
+      - name: Expo Prebuild
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL || 'https://huooiccnyprldwjdikvq.supabase.co' }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1b29pY2NueXBybGR3amRpa3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NzUyMDMsImV4cCI6MjEwMzQ1MTIwM30.6JPKVALiMIk178NQVak7uxLtJiNB3wNB6qw3kpklNwo' }}
+          EXPO_PUBLIC_CANETO_API_URL: ${{ secrets.EXPO_PUBLIC_CANETO_API_URL || 'https://caneto.online' }}
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build Android Release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Prepare APK Asset
+        run: |
+          APK_FILE=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: Release APK not found in outputs!"
+            find android/app/build/outputs -type f || true
+            exit 1
+          fi
+
+          echo "Found APK: $APK_FILE"
+          mkdir -p build-release
+          cp "$APK_FILE" "build-release/${{ steps.versioning.outputs.apk_name }}"
+          echo "Prepared asset at: build-release/${{ steps.versioning.outputs.apk_name }}"
+          ls -la build-release
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.versioning.outputs.apk_name }}
+          path: build-release/${{ steps.versioning.outputs.apk_name }}
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.versioning.outputs.tag }}"
+          APK_PATH="build-release/${{ steps.versioning.outputs.apk_name }}"
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+
+          RELEASE_NOTES="### 📱 Caneto Native $TAG
+
+          - **Arquivo APK:** \`${{ steps.versioning.outputs.apk_name }}\`
+          - **Commit:** \`${{ steps.versioning.outputs.short_sha }}\`
+          - **Build:** \`#${{ steps.versioning.outputs.run_num }}\`
+
+          #### 📥 Como baixar e instalar:
+          1. Baixe o arquivo \`${{ steps.versioning.outputs.apk_name }}\` anexado nesta release no seu smartphone Android.
+          2. Abra o arquivo \`.apk\` baixado.
+          3. Caso o Android solicite permissão, autorize a instalação de fontes desconhecidas para o navegador/arquivos.
+          4. Conclua a instalação e abra o Caneto!"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Uploading new asset..."
+            gh release upload "$TAG" "$APK_PATH" --clobber
+          else
+            echo "Creating new GitHub Release $TAG..."
+            gh release create "$TAG" "$APK_PATH" \
+              --title "Caneto $TAG (Build #${{ steps.versioning.outputs.run_num }})" \
+              --notes "$RELEASE_NOTES" \
+              --latest
+          fi
