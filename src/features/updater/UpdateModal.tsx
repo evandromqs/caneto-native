@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../ui/theme';
 import type { AppReleaseInfo } from './updaterService';
-import { downloadAndInstallApk } from './updaterService';
+import { isNewerVersion, openApkDownload } from './updaterService';
 
 interface UpdateModalProps {
   visible: boolean;
@@ -19,12 +19,25 @@ interface UpdateModalProps {
 }
 
 export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) {
+  const [opening, setOpening] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
   if (!visible || !updateInfo) return null;
 
+  const handleClose = () => {
+    setDownloadError('');
+    onClose();
+  };
+
   const handleDownload = async () => {
-    if (updateInfo.apkUrl) {
-      await downloadAndInstallApk(updateInfo.apkUrl);
-      onClose();
+    setOpening(true);
+    setDownloadError('');
+    try {
+      await openApkDownload(updateInfo.apkUrl);
+      handleClose();
+    } catch {
+      setDownloadError('Não foi possível abrir o download. Verifique a conexão e tente novamente.');
+    } finally {
+      setOpening(false);
     }
   };
 
@@ -33,7 +46,7 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
@@ -71,22 +84,28 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
             </View>
           ) : null}
 
+          <Text style={styles.subtitle}>O navegador baixará o APK. Abra o arquivo baixado e confirme a instalação.</Text>
+          {!isNewerVersion(updateInfo.currentVersion, '1.0.5') ? (
+            <Text style={styles.warningText}>Se você instalou uma versão até v1.0.5 pelo GitHub, a nova assinatura exige remover o app antigo antes de instalar. Confirme que seus dados estão sincronizados.</Text>
+          ) : null}
+          {downloadError ? <Text style={styles.errorText}>{downloadError}</Text> : null}
           {/* Action Buttons */}
           <View style={styles.actions}>
             <Pressable
               style={styles.downloadButton}
               onPress={handleDownload}
+              disabled={opening}
               accessibilityRole="button"
             >
               <Ionicons name="download-outline" size={20} color="#FFFFFF" />
               <Text style={styles.downloadButtonText}>
-                Baixar e Instalar com 1 Clique
+                {opening ? 'Abrindo download...' : 'Abrir download do APK'}
               </Text>
             </Pressable>
 
             <Pressable
               style={styles.laterButton}
-              onPress={onClose}
+              onPress={handleClose}
               accessibilityRole="button"
             >
               <Text style={styles.laterButtonText}>Lembrar mais tarde</Text>
@@ -235,5 +254,20 @@ const styles = StyleSheet.create({
     color: theme.muted,
     fontSize: 14,
     fontFamily: theme.font.semibold,
+  },
+  errorText: {
+    color: '#B91C1C',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  warningText: {
+    color: '#92400E',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
   },
 });

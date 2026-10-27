@@ -28,6 +28,7 @@
       "typedRoutes": true
     },
     "plugins": [
+      "./plugins/withGithubReleaseSigning",
       "expo-sqlite",
       "expo-font",
       "expo-router",

@@ -28,15 +28,14 @@ jobs:
       - name: Calculate Version & APK Naming
         id: versioning
         run: |
-          PKG_VERSION=$(node -p "require('./package.json').version || '1.0.3'")
-          MAJOR_MINOR=$(node -p "const parts = (require('./package.json').version || '1.0.3').split('.'); parts.slice(0, 2).join('.') || '1.0'")
+          MAJOR_MINOR=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
           RUN_NUM="${{ github.run_number }}"
           SHORT_SHA=$(git rev-parse --short HEAD)
 
           RELEASE_TAG="v${MAJOR_MINOR}.${RUN_NUM}"
           APK_NAME="caneto-${RELEASE_TAG}.apk"
 
-          echo "pkg_version=${PKG_VERSION}" >> $GITHUB_OUTPUT
+          node -e "const fs=require('fs'); const app=require('./app.json'); const pkg=require('./package.json'); const lock=require('./package-lock.json'); const code=Number(process.env.GITHUB_RUN_NUMBER); if (!Number.isSafeInteger(code) || code <= app.expo.android.versionCode) throw Error('Build number must exceed committed Android versionCode'); const version=process.argv[1]; app.expo.version=version; app.expo.android.versionCode=code; pkg.version=version; lock.version=version; lock.packages[''].version=version; for (const [path,obj] of [['app.json',app],['package.json',pkg],['package-lock.json',lock]]) fs.writeFileSync(path,JSON.stringify(obj,null,2)+'\n');" "${MAJOR_MINOR}.${RUN_NUM}"
           echo "tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
           echo "apk_name=${APK_NAME}" >> $GITHUB_OUTPUT
           echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
@@ -72,43 +71,28 @@ jobs:
           EXPO_PUBLIC_CANETO_API_URL=${{ env.EXPO_PUBLIC_CANETO_API_URL }}
           EOF
           cp .env .env.local
-          echo "Generated .env file:"
-          cat .env
+          echo "Environment file prepared."
 
-      - name: Configure Keystore & Credentials
+      - name: Configure release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "Decoding release keystore from GitHub Secrets..."
-            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
-            KEY_PASS="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
-            ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}"
-            ALIAS_PASS="${{ secrets.ANDROID_KEY_PASSWORD }}"
-          else
-            echo "Generating automated release keystore for CI builds..."
-            keytool -genkeypair -v -storetype PKCS12 -keystore release.keystore \
-              -alias caneto-key -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass caneto123 -keypass caneto123 \
-              -dname "CN=Caneto, OU=Mobile, O=Caneto, L=SaoPaulo, ST=SP, C=BR"
-            KEY_PASS="caneto123"
-            ALIAS="caneto-key"
-            ALIAS_PASS="caneto123"
-          fi
-
-          cat <<EOF > credentials.json
-          {
-            "android": {
-              "keystore": {
-                "keystorePath": "release.keystore",
-                "keystorePassword": "$KEY_PASS",
-                "keyAlias": "$ALIAS",
-                "keyPassword": "$ALIAS_PASS"
-              }
-            }
-          }
-          EOF
+          test -n "$KEYSTORE_BASE64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo 'Required Android signing secrets are missing.'; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > release.keystore
+          test -s release.keystore
 
       - name: Expo Prebuild
+        env:
+          CANETO_GITHUB_RELEASE_SIGNING: '1'
         run: npx expo prebuild --platform android --clean
+
+      - name: Verify release signing configuration
+        run: |
+          grep -q 'signingConfig signingConfigs.release' android/app/build.gradle
+          grep -q "CANETO_RELEASE_KEYSTORE_PATH" android/app/build.gradle
 
       - name: Ensure .env is present in Android assets
         run: |
@@ -118,6 +102,10 @@ jobs:
       - name: Build Android Release APK
         working-directory: android
         env:
+          CANETO_RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+          CANETO_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CANETO_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CANETO_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           EXPO_PUBLIC_SUPABASE_URL: ${{ env.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ env.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
           EXPO_PUBLIC_CANETO_API_URL: ${{ env.EXPO_PUBLIC_CANETO_API_URL }}
@@ -137,6 +125,9 @@ jobs:
           echo "Found APK: $APK_FILE"
           mkdir -p build-release
           cp "$APK_FILE" "build-release/${{ steps.versioning.outputs.apk_name }}"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify "build-release/${{ steps.versioning.outputs.apk_name }}"
           echo "Prepared asset at: build-release/${{ steps.versioning.outputs.apk_name }}"
           ls -la build-release
 
@@ -162,12 +153,8 @@ jobs:
           - **Commit:** \`${{ steps.versioning.outputs.short_sha }}\`
           - **Build:** \`#${{ steps.versioning.outputs.run_num }}\`
 
-          #### ✨ O que mudou:
-          - Correção definitiva de crash ao abrir o aplicativo (tratamento e injeção segura de chaves Supabase)
-          - Pacote atualizado para \`com.evandromqs.caneto\`
-          - Ícones e imagens oficiais importados do Caneto Web
-          - Redesign e correção visual da barra de navegação inferior flutuante (menu dock)
-          - Sistema integrado de atualização e instalação com 1 clique direto pelo app
+          #### O que mudou
+          $COMMIT_MSG
 
           #### 📥 Como baixar e instalar:
           1. Baixe o arquivo \`${{ steps.versioning.outputs.apk_name }}\` anexado nesta release no seu celular.

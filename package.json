@@ -7,6 +7,7 @@
     "@expo/vector-icons": "^15.0.2",
     "@supabase/supabase-js": "^2.118.0",
     "expo": "~57.0.30",
+    "expo-application": "~57.0.3",
     "expo-auth-session": "~57.0.16",
     "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.22",

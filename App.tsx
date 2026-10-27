@@ -39,7 +39,7 @@ import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
-import { checkAppUpdate, type AppReleaseInfo } from './src/features/updater/updaterService';
+import { checkAppUpdate, CURRENT_APP_VERSION, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
 import { ScannerModal } from './src/features/capture/ScannerModal';
 import { bindSyncUser, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
@@ -423,14 +423,24 @@ export default function App() {
         plan={profile ? { tier: profile.planTier ?? 'free', scansUsed: profile.aiScansUsedThisMonth ?? 0, scansLimit: profile.aiScansLimit ?? 0 } : undefined}
         purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
         preferences={preferences}
-        version="1.0.5"
+        version={CURRENT_APP_VERSION}
         onCheckUpdate={async () => {
-          const res = await checkAppUpdate();
-          if (res?.hasUpdate) {
-            setUpdateInfo(res);
-            setUpdateModalVisible(true);
-          } else {
-            Alert.alert('Atualização', 'O aplicativo já está na versão mais recente (v1.0.5)!');
+          if (IS_EXPO_GO) {
+            Alert.alert('Atualização', 'A atualização por APK está disponível no Caneto instalado, fora do Expo Go.');
+            return;
+          }
+          try {
+            const res = await checkAppUpdate();
+            if (res?.hasUpdate) {
+              setUpdateInfo(res);
+              setUpdateModalVisible(true);
+            } else if (res) {
+              Alert.alert('Atualização', `O aplicativo já está na versão mais recente (v${CURRENT_APP_VERSION}).`);
+            } else {
+              Alert.alert('Atualização', 'Ainda não há uma versão publicada no GitHub.');
+            }
+          } catch {
+            Alert.alert('Atualização', 'Não foi possível verificar a versão no GitHub. Verifique a conexão e tente novamente.');
           }
         }}
         onChangePreferences={next => { setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : current); void updatePreferences(next, session.user.id).catch(errorMessage); }}
