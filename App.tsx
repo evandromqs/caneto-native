@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, BackHandler, Image, KeyboardAvoidingView, Pla
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from '@expo-google-fonts/poppins';
 import type { Session } from '@supabase/supabase-js';
-import { addItem, createList, loadLists, setItemChecked, type Item, type List } from './src/data';
+import { addItem, addScannedItem, createList, loadLists, setItemChecked, type Item, type List } from './src/data';
 import { supabase } from './src/supabase';
 import { theme } from './src/ui/theme';
 import { NewListModal, ItemEditModal } from './src/features/lists/ListModals';
@@ -13,7 +13,7 @@ import { JoinListModal, ShareListModal } from './src/features/sharing/SharingMod
 import { joinListByCode } from './src/features/sharing/repository';
 import { ProfileModal } from './src/features/profile/ProfileModal';
 import { HistoryModal, PaymentModal } from './src/features/purchases/PurchaseModals';
-import { finishPurchase, recreatePurchase } from './src/features/purchases/repository';
+import { finishPurchase, recreatePurchase, type PurchaseReceipt } from './src/features/purchases/repository';
 import { StoreExplorer, StorePickerModal } from './src/features/stores/StoreExplorer';
 import { ListsOverview } from './src/features/lists/ListsOverview';
 import type { DeletedShoppingItem, Profile, Purchase, ShoppingItem, ShoppingList } from './src/core/models/caneto';
@@ -41,6 +41,9 @@ import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, remove
 import { getErrorMessage } from './src/ui/error';
 import { checkAppUpdate, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
+import { ScannerModal } from './src/features/capture/ScannerModal';
+import { bindSyncUser, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
+import { subscribeShoppingChanges } from './src/core/sync/realtime';
 
 const green = theme.blue;
 const errorMessage = (error: unknown) => Alert.alert('Não foi possível continuar', getErrorMessage(error));
@@ -73,6 +76,8 @@ export default function App() {
   const [trashItems, setTrashItems] = useState<DeletedShoppingItem[]>([]);
   const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [syncText, setSyncText] = useState('');
   const pendingDeletedItemRef = useRef<{ item: ShoppingItem; listId: string } | null>(null);
 
   const refresh = useCallback(async (userId: string) => setLists(await loadLists(userId)), []);
@@ -101,7 +106,23 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
-  useEffect(() => { if (session) refresh(session.user.id).catch(errorMessage); }, [session?.user.id, refresh]);
+  useEffect(() => subscribeSync(meta => {
+    if (!meta.online) setSyncText(meta.pending ? `Sem conexão · ${meta.pending} alteração(ões) na fila` : 'Sem conexão · mostrando o que já está neste aparelho');
+    else if (meta.flushing || meta.pending) setSyncText(meta.pending ? `Sincronizando ${meta.pending} alteração(ões) com o Supabase` : 'Sincronizando com o Supabase');
+    else setSyncText(meta.lastError ? `Sincronização pendente: ${meta.lastError}` : '');
+  }), []);
+  useEffect(() => {
+    if (!session) return;
+    bindSyncUser(session.user.id);
+    void refresh(session.user.id).catch(errorMessage);
+    const stopNet = watchConnectivity(() => { void flushOutbox().then(() => refresh(session.user.id)).catch(() => undefined); });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stopRemote = subscribeShoppingChanges(() => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { void refresh(session.user.id).catch(() => undefined); }, 800);
+    });
+    return () => { stopNet(); stopRemote(); if (timer) clearTimeout(timer); };
+  }, [session?.user.id, refresh]);
   useEffect(() => {
     if (!session || tab !== 'settings') return;
     let active = true;
@@ -325,7 +346,7 @@ export default function App() {
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 
-  return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />{selected?.domain ? <ShoppingListScreen
+  return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />{!!syncText && <Text style={styles.sync}>{syncText}</Text>}{selected?.domain ? <ShoppingListScreen
     list={selected.domain}
     busy={busy}
     onBack={() => {
@@ -337,6 +358,7 @@ export default function App() {
     onToggle={item => { const legacy = selected.items.find(row => row.id === item.id); if (legacy) return toggle(legacy); }}
     onEdit={item => { if (!selected.is_completed && selected.permission !== 'viewer') { setModalItemId(item.id); setModal('item'); } }}
     onAdd={addProduct}
+    onScan={() => setScannerOpen(true)}
     onRefresh={() => refresh(session.user.id)}
     trashCount={trashItems.length}
     onOpenTrash={() => setModal('trash')}
@@ -401,14 +423,14 @@ export default function App() {
         plan={profile ? { tier: profile.planTier ?? 'free', scansUsed: profile.aiScansUsedThisMonth ?? 0, scansLimit: profile.aiScansLimit ?? 0 } : undefined}
         purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
         preferences={preferences}
-        version="1.0.4"
+        version="1.0.5"
         onCheckUpdate={async () => {
           const res = await checkAppUpdate();
           if (res?.hasUpdate) {
             setUpdateInfo(res);
             setUpdateModalVisible(true);
           } else {
-            Alert.alert('Atualização', 'O aplicativo já está na versão mais recente (v1.0.4)!');
+            Alert.alert('Atualização', 'O aplicativo já está na versão mais recente (v1.0.5)!');
           }
         }}
         onChangePreferences={next => { setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : current); void updatePreferences(next, session.user.id).catch(errorMessage); }}
@@ -482,7 +504,7 @@ export default function App() {
     <JoinListModal visible={modal === 'join'} onClose={() => setModal(null)} onJoin={async code => { const result = await joinListByCode(code); if (result === 'joined') await refresh(session.user.id); return result; }} />
     <ShareListModal visible={modal === 'share'} list={modalList} onClose={() => { setModal(null); void refresh(session.user.id); }} onChanged={() => refresh(session.user.id)} />
     <ProfileModal visible={modal === 'profile'} userId={session.user.id} email={session.user.email ?? ''} onClose={() => { setModal(null); void canetoData.profile(session.user.id).then(setProfile).catch(errorMessage); }} />
-    <PaymentModal visible={modal === 'payment'} list={modalList} onClose={() => setModal(null)} onConfirm={async method => { if (!modalList) return; await finishPurchase(modalList, session.user.id, method); await refresh(session.user.id); setModal(null); }} />
+    <PaymentModal visible={modal === 'payment'} list={modalList} userId={session.user.id} onClose={() => setModal(null)} onConfirm={async (method, receipt: PurchaseReceipt) => { if (!modalList) return; await finishPurchase(modalList, session.user.id, method, receipt); await refresh(session.user.id); setModal(null); }} />
     <HistoryModal visible={modal === 'history'} userId={session.user.id} onClose={() => setModal(null)} onRecreate={async record => { await recreatePurchase(record, session.user.id); await refresh(session.user.id); }} />
     {selected && <StorePickerModal visible={modal === 'store'} listId={selected.id} selectedStoreId={selected.store_id ?? undefined} selectedStoreName={selected.store_name ?? undefined} onClose={() => setModal(null)} onLinked={() => refresh(session.user.id)} />}
     <TrashModal
@@ -518,11 +540,17 @@ export default function App() {
       }}
     />
     <UpdateModal visible={updateModalVisible} updateInfo={updateInfo} onClose={() => setUpdateModalVisible(false)} />
+    <ScannerModal visible={scannerOpen && !!selectedId} userId={session.user.id} onClose={() => setScannerOpen(false)} onConfirm={async result => {
+      if (!selectedId) return;
+      for (const item of result.items) await addScannedItem(session.user.id, selectedId, item);
+      await refresh(session.user.id);
+    }} />
   </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F8FAFC' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1 },
+  sync: { marginHorizontal: 16, marginTop: 6, color: '#475569', fontFamily: theme.font.semibold, fontSize: 12 },
   tabContentContainer: { flex: 1, position: 'relative' }, screenArea: { flex: 1 },
   listBackRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 10 }, listBackName: { flex: 1, color: '#0F172A', fontSize: 17, fontFamily: 'Poppins_700Bold' }, itemEditButton: { padding: 8, marginLeft: 3 }, optionsButton: { padding: 7, marginRight: -7 },
   socialJoin: { backgroundColor: green, borderRadius: 14, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 18 },

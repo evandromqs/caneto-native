@@ -2,7 +2,7 @@
   "expo": {
     "name": "Caneto",
     "slug": "caneto-native",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.evandromqs.caneto",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#0943F1",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -31,7 +31,26 @@
       "expo-sqlite",
       "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O Caneto usa sua localização para mostrar lojas próximas e marcar a fachada de um local."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O Caneto usa a câmera para ler códigos, fotografar produtos e a fachada de lojas.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Caneto acessa a galeria para escolher a foto da fachada."
+        }
+      ]
     ],
     "extra": {
       "router": {},

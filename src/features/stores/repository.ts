@@ -1,4 +1,6 @@
 import { supabase } from '../../supabase';
+import { patchLists } from '../../data';
+import { syncWrite } from '../../core/sync/outbox';
 import { categoryLabel, normalizeStoreText, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
 
 const API_ORIGIN = (process.env.EXPO_PUBLIC_CANETO_API_URL || 'https://www.caneto.online').replace(/\/$/, '');
@@ -123,9 +125,13 @@ export async function loadStorePrices(storeId: string): Promise<StorePrice[]> {
 }
 
 export async function linkStoreToList(listId: string, store: Store | null): Promise<void> {
-  const { error } = await supabase.from('lists').update({
-    store_id: store?.id ?? null, store_name: store?.name ?? null, store_address: store?.address || null,
-    updated_at: Date.now(),
-  }).eq('id', listId);
-  if (error) throw error;
+  const now = Date.now();
+  const payload = {
+    store_id: store?.id ?? null, store_name: store?.name ?? null, store_address: store?.address || null, updated_at: now,
+  };
+  patchLists(lists => lists.map(list => list.id === listId ? {
+    ...list, ...payload, updated_at: now,
+    domain: list.domain ? { ...list.domain, storeId: store?.id, storeName: store?.name, storeAddress: store?.address, updatedAt: now } : list.domain,
+  } : list));
+  await syncWrite({ table: 'lists', action: 'update', entityId: listId, match: { id: listId }, payload });
 }

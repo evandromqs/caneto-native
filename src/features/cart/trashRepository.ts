@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
-import { supabase } from '../../supabase';
+import { patchLists } from '../../data';
+import { syncWrite } from '../../core/sync/outbox';
 import type { DeletedShoppingItem, ShoppingItem } from '../../core/models/caneto';
 
 export const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
@@ -96,7 +97,7 @@ export async function restoreItemToDatabase(userId: string, item: DeletedShoppin
   const listId = item.listId || item.originalListId;
   if (!listId) throw new Error('ID da lista ausente para restauração.');
 
-  const { error } = await supabase.from('items').insert({
+  const row = {
     id: item.id || Crypto.randomUUID(),
     list_id: listId,
     user_id: userId,
@@ -113,16 +114,22 @@ export async function restoreItemToDatabase(userId: string, item: DeletedShoppin
     brand: item.brand ?? null,
     created_at: item.createdAt || now,
     updated_at: now,
-  });
-
-  if (error) throw error;
-
-  await supabase.from('lists').update({ updated_at: now }).eq('id', listId);
+  };
+  patchLists(lists => lists.map(list => list.id === listId ? {
+    ...list, updated_at: now, items: [...list.items, {
+      id: row.id, list_id: listId, name: row.name, category_id: row.category_id, quantity: row.quantity,
+      unit: row.unit, price: row.price, checked: false, created_at: row.created_at, checked_at: null, updated_at: now,
+      ean: row.ean, brand: row.brand,
+    }],
+  } : list));
+  await syncWrite({ table: 'items', action: 'insert', entityId: row.id, match: { id: row.id }, payload: row, userId });
+  await syncWrite({ table: 'lists', action: 'update', entityId: listId, match: { id: listId }, payload: { updated_at: now }, userId });
 }
 
 /** Exclui o item definitivamente da tabela items no Supabase */
 export async function deleteItemFromDatabase(itemId: string, listId: string): Promise<void> {
-  const { error } = await supabase.from('items').delete().eq('id', itemId);
-  if (error) throw error;
-  await supabase.from('lists').update({ updated_at: Date.now() }).eq('id', listId);
+  const now = Date.now();
+  patchLists(lists => lists.map(list => list.id === listId ? { ...list, updated_at: now, items: list.items.filter(item => item.id !== itemId) } : list));
+  await syncWrite({ table: 'items', action: 'delete', entityId: itemId, match: { id: itemId }, payload: null });
+  await syncWrite({ table: 'lists', action: 'update', entityId: listId, match: { id: listId }, payload: { updated_at: now } });
 }

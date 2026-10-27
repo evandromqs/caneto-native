@@ -7,19 +7,25 @@ import { CanetoIcon } from '../../ui/CanetoIcon';
 import { getErrorMessage } from '../../ui/error';
 import { STORE_CATEGORIES, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
 import { linkStoreToList, loadStoreDetails, loadStorePrices, searchStores } from './repository';
+import { OsmMap } from './OsmMap';
+import { NewStoreModal } from './NewStoreModal';
+import { useDeviceLocation } from './useDeviceLocation';
 
 type ExplorerProps = { onSelectStore?: (store: Store) => void | Promise<void>; coordinates?: Coordinates; selectedStoreId?: string; mode?: 'explore' | 'picker' };
 
 export function StoreExplorer({ onSelectStore, coordinates, selectedStoreId, mode = 'explore' }: ExplorerProps) {
+  const device = useDeviceLocation(!coordinates);
+  const activeCoordinates = coordinates ?? device.coords ?? undefined;
   const [query, setQuery] = useState('');
+  const [creating, setCreating] = useState(false);
   const [category, setCategory] = useState<StoreCategory>('all');
   const [stores, setStores] = useState<Store[]>([]);
   const [selected, setSelected] = useState<Store | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
-  const lat = coordinates?.lat;
-  const lng = coordinates?.lng;
+  const lat = activeCoordinates?.lat;
+  const lng = activeCoordinates?.lng;
 
   useEffect(() => {
     let active = true;
@@ -35,18 +41,23 @@ export function StoreExplorer({ onSelectStore, coordinates, selectedStoreId, mod
   const featured = useMemo(() => stores.slice(0, 80), [stores]);
   const searchControl = <View style={styles.searchBox}><Ionicons name="search-outline" size={19} color={theme.blue} /><TextInput style={styles.searchInput} placeholder={mode === 'picker' ? 'Buscar supermercado, atacadista, endereço...' : 'Busque um local ou loja'} placeholderTextColor={theme.muted} value={query} onChangeText={setQuery} returnKeyType="search" accessibilityLabel="Buscar locais" />{!!query && <Pressable accessibilityLabel="Limpar busca" onPress={() => setQuery('')}><Ionicons name="close" size={18} color={theme.muted} /></Pressable>}</View>;
   const categoryControl = <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>{STORE_CATEGORIES.map(entry => <Pressable key={entry.id} style={[styles.chip, category === entry.id && styles.chipActive]} onPress={() => setCategory(entry.id)} accessibilityRole="button" accessibilityState={{ selected: category === entry.id }}><CanetoIcon name={entry.id} size={19} color={category === entry.id ? 'white' : theme.blue} /><Text style={[styles.chipText, category === entry.id && styles.chipTextActive]}>{entry.label}</Text></Pressable>)}</ScrollView>;
+  const markers = featured.flatMap(store => store.lat != null && store.lon != null ? [{ id: store.id, name: store.name, lat: store.lat, lng: store.lon }] : []);
   return <View style={styles.explorer}>
+    {mode === 'explore' && <OsmMap user={activeCoordinates} markers={markers} onSelect={id => setSelected(featured.find(store => store.id === id) ?? null)} />}
+    {mode === 'explore' && !!device.message && <Text style={styles.noticeText}>{device.message}</Text>}
     {mode === 'explore' && searchControl}
     {mode === 'explore' && categoryControl}
-    <View style={styles.resultsHeading}><Ionicons name="storefront-outline" size={19} color={theme.blue} /><Text style={styles.resultsTitle}>{query || !coordinates ? 'Locais encontrados' : 'Locais próximos encontrados'} ({featured.length})</Text>{loading && <ActivityIndicator size="small" color={theme.blue} />}</View>
+    {mode === 'explore' && <Pressable style={styles.createStore} onPress={() => setCreating(true)} accessibilityRole="button" accessibilityLabel="Cadastrar local com foto"><Ionicons name="camera-outline" size={18} color="white" /><Text style={styles.createStoreText}>Cadastrar local</Text></Pressable>}
+    <View style={styles.resultsHeading}><Ionicons name="storefront-outline" size={19} color={theme.blue} /><Text style={styles.resultsTitle}>{query || !activeCoordinates ? 'Locais encontrados' : 'Locais próximos encontrados'} ({featured.length})</Text>{loading && <ActivityIndicator size="small" color={theme.blue} />}</View>
     {loading && <ActivityIndicator style={styles.loader} color={theme.blue} />}
     {!!error && <View style={styles.notice}><Text style={styles.noticeText}>{error}</Text><Pressable onPress={() => setRetry(value => value + 1)}><Text style={styles.retry}>Tentar novamente</Text></Pressable></View>}
     <ScrollView contentContainerStyle={styles.results} keyboardShouldPersistTaps="handled">
-      {!loading && !featured.length && !error && <View style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="storefront-outline" size={28} color={theme.blue} /></View><Text style={styles.emptyTitle}>{query ? `Nenhum local encontrado para “${query}”` : 'Nenhum local encontrado'}</Text><Text style={styles.emptyDescription}>{!query && !coordinates ? 'Busque pelo nome ou selecione uma categoria para encontrar lojas.' : 'Tente outro nome ou categoria.'}</Text></View>}
+      {!loading && !featured.length && !error && <View style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="storefront-outline" size={28} color={theme.blue} /></View><Text style={styles.emptyTitle}>{query ? `Nenhum local encontrado para “${query}”` : 'Nenhum local encontrado'}</Text><Text style={styles.emptyDescription}>{!query && !activeCoordinates ? 'Busque pelo nome ou selecione uma categoria para encontrar lojas.' : 'Tente outro nome ou categoria.'}</Text></View>}
       {featured.map(store => <StoreCard key={store.id} store={store} selected={store.id === selectedStoreId} onPress={() => { if (mode === 'picker' && onSelectStore) void Promise.resolve(onSelectStore(store)).catch(reason => setError(getErrorMessage(reason))); else setSelected(store); }} onDetails={() => setSelected(store)} picker={mode === 'picker'} />)}
     </ScrollView>
     {mode === 'picker' && <View style={styles.pickerFooter}>{categoryControl}{searchControl}</View>}
     <StoreDetailsModal visible={!!selected} store={selected} onClose={() => setSelected(null)} onSelect={onSelectStore ? async store => { await onSelectStore(store); setSelected(null); } : undefined} />
+    <NewStoreModal visible={creating} onClose={() => setCreating(false)} />
   </View>;
 }
 
@@ -122,6 +133,7 @@ function StoreCard({ store, selected, onPress, onDetails, picker }: { store: Sto
 
 const styles = StyleSheet.create({
   explorer: { flex: 1, minHeight: 340, backgroundColor: theme.background }, pickerBody: { height: 530 },
+  createStore: { marginHorizontal: 16, marginBottom: 8, minHeight: 44, borderRadius: 14, backgroundColor: theme.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, createStoreText: { color: 'white', fontFamily: theme.font.bold },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, borderRadius: 16, minHeight: 48, paddingHorizontal: 13 },
   searchInput: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15, paddingVertical: 8 },
   categories: { gap: 8, paddingHorizontal: 16, paddingVertical: 12 }, chip: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, borderRadius: 13, paddingHorizontal: 14, minHeight: 38, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 7 }, chipActive: { borderColor: theme.blue, backgroundColor: theme.blue }, chipText: { fontFamily: theme.font.bold, color: theme.ink, fontSize: 13 }, chipTextActive: { color: 'white' },
