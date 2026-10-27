@@ -8,6 +8,7 @@ import { parseQuickItemInput } from '../categories';
 
 const LIST_COLUMNS = 'id,user_id,name,icon,color,is_default,share_code,permission,access_mode,budget,store_id,store_name,store_address,is_completed,completed_at,payment_method,receipt_photo_url,receipt_qr_code,receipt_key,total_spent,detected_items_total,pending_receipt,created_at,updated_at';
 const ITEM_COLUMNS = 'id,list_id,user_id,name,category_id,quantity,unit,price,checked,notes,photo_url,label_photo_url,ean,brand,created_at,updated_at,checked_at';
+const LEGACY_ITEM_COLUMNS = ITEM_COLUMNS.replace(',label_photo_url', '');
 const PURCHASE_COLUMNS = 'id,user_id,list_id,list_name,completed_at,total_items,total_spent,items,detected_items_total,pending_receipt,payment_method,store_id,store_name,store_address,store_cnpj,receipt_photo_url,receipt_qr_code,receipt_key';
 const PROFILE_COLUMNS = 'id,email,username,display_name,avatar_url,visibility,is_photo_public,preferences,updated_at,plan_tier,ai_scans_used_this_month,ai_scans_limit,ai_scans_reset_at,subscription_expires_at';
 const STORE_PRICE_COLUMNS = 'id,store_id,store_name,store_cnpj,ean,product_name,canonical_name,category_id,price,unit,price_type,observed_at,updated_at';
@@ -31,7 +32,13 @@ export const canetoData = {
     if (rows.length === 0) return [];
     const ids = rows.map(row => row.id);
     const [itemResult, membershipResult] = await Promise.all([
-      supabase.from('items').select(ITEM_COLUMNS).in('list_id', ids).order('created_at'),
+      (async () => {
+        const result = await supabase.from('items').select(ITEM_COLUMNS).in('list_id', ids).order('created_at');
+        if (result.error && /label_photo_url/i.test(result.error.message)) {
+          return supabase.from('items').select(LEGACY_ITEM_COLUMNS).in('list_id', ids).order('created_at');
+        }
+        return result;
+      })(),
       supabase.from('list_members').select('list_id,user_id,permission').eq('user_id', userId),
     ]);
     if (itemResult.error) throw itemResult.error;

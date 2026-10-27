@@ -60,6 +60,7 @@ export type Item = {
   updated_at: number;
   ean?: string | null;
   brand?: string | null;
+  photo_url?: string | null;
 };
 
 export type List = {
@@ -84,6 +85,7 @@ function toShoppingItem(item: Item): ShoppingItem {
     quantity: item.quantity, unit: item.unit as ShoppingItem['unit'], price: item.price ?? undefined,
     checked: item.checked, createdAt: item.created_at, updatedAt: item.updated_at,
     checkedAt: item.checked_at ?? undefined, ean: item.ean ?? undefined, brand: item.brand ?? undefined,
+    photoUrl: item.photo_url ?? undefined,
   };
 }
 
@@ -113,7 +115,7 @@ export function patchLists(mutator: (lists: List[]) => List[]) {
 }
 
 function mergeLists(remote: List[], local: List[]): List[] {
-  const pending = pendingOps();
+  const pending = pendingOps().filter(op => op.userId === currentSyncUserId());
   const deletedLists = new Set(pending.filter(op => op.table === 'lists' && op.action === 'delete').map(op => op.entityId));
   const deletedItems = new Set(pending.filter(op => op.table === 'items' && op.action === 'delete').map(op => op.entityId));
   const byId = new Map<string, List>();
@@ -146,24 +148,36 @@ function fromDomain(list: ShoppingList): List {
       quantity: item.quantity, unit: item.unit, price: item.price ?? null,
       checked: item.checked, created_at: item.createdAt,
       checked_at: item.checkedAt ?? null, updated_at: item.updatedAt,
-      ean: item.ean ?? null, brand: item.brand ?? null,
+      ean: item.ean ?? null, brand: item.brand ?? null, photo_url: item.photoUrl ?? null,
     })),
   });
 }
 
-export async function loadLists(userId: string): Promise<List[]> {
-  bindSyncUser(userId);
-  await flushOutbox();
-  const local = readListCache<List>(userId) ?? [];
-  try {
-    const remote = (await canetoData.lists(userId)).map(fromDomain);
-    const merged = pendingOps().length ? mergeLists(remote, local) : remote;
+const remoteLoads = new Map<string, Promise<List[]>>();
+
+function refreshRemoteLists(userId: string): Promise<List[]> {
+  const active = remoteLoads.get(userId);
+  if (active) return active;
+  const task = canetoData.lists(userId).then(domainLists => {
+    const remote = domainLists.map(fromDomain);
+    const local = readListCache<List>(userId) ?? [];
+    const merged = pendingOps().some(op => op.userId === userId) ? mergeLists(remote, local) : remote;
     writeListCache(userId, merged);
     return merged;
-  } catch (error) {
-    if (local.length) return local;
-    throw error;
+  }).finally(() => { remoteLoads.delete(userId); });
+  remoteLoads.set(userId, task);
+  return task;
+}
+
+export async function loadLists(userId: string): Promise<List[]> {
+  bindSyncUser(userId);
+  void flushOutbox().catch(() => undefined);
+  const local = readListCache<List>(userId);
+  if (local !== null) {
+    void refreshRemoteLists(userId).catch(() => undefined);
+    return local;
   }
+  return refreshRemoteLists(userId);
 }
 
 export async function createList(userId: string, name: string): Promise<string> {
@@ -188,18 +202,18 @@ export async function addItem(userId: string, listId: string, rawInput: string):
   });
 }
 
-export async function addScannedItem(userId: string, listId: string, input: { name: string; categoryId: string; quantity: number; unit: string; price: number | null; ean?: string; brand?: string }) {
+export async function addScannedItem(userId: string, listId: string, input: { name: string; categoryId: string; quantity: number; unit: string; price: number | null; ean?: string; brand?: string; photoUrl?: string }) {
   const name = input.name.trim();
   if (!name) throw new Error('Informe o nome do produto.');
   await insertItem(userId, listId, { ...input, name });
 }
 
-async function insertItem(userId: string, listId: string, input: { name: string; categoryId: string; quantity: number; unit: string; price: number | null; ean?: string; brand?: string }) {
+async function insertItem(userId: string, listId: string, input: { name: string; categoryId: string; quantity: number; unit: string; price: number | null; ean?: string; brand?: string; photoUrl?: string }) {
   const now = Date.now();
   const row = {
     id: generateUUID(), list_id: listId, user_id: userId, name: input.name, category_id: input.categoryId,
     quantity: input.quantity, unit: input.unit, price: input.price, checked: false, created_at: now, updated_at: now,
-    ean: input.ean ?? null, brand: input.brand ?? null,
+    ean: input.ean ?? null, brand: input.brand ?? null, photo_url: input.photoUrl ?? null,
   };
   patchLists(lists => lists.map(list => list.id === listId ? {
     ...list, updated_at: now, items: [...list.items, { ...row, checked_at: null }],

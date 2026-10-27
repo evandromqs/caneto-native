@@ -50,8 +50,6 @@ function PaymentDialog({ list, userId, onClose, onConfirm }: {
   const hasReceipt = Boolean(receiptPhoto || receiptQr);
   const difference = Math.abs(finalTotal - calculated) >= 0.01;
 
-  useEffect(() => { setTotalText(calculated.toFixed(2).replace('.', ',')); }, [calculated]);
-
   const finish = async () => {
     setBusy(true);
     setMessage('');

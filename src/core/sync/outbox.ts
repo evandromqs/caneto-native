@@ -127,34 +127,38 @@ async function applyOp(op: WriteOp) {
 
 export async function flushOutbox(): Promise<void> {
   if (flushing) return;
-  const online = await isOnline();
-  if (!online) return;
   flushing = true;
   emit();
   try {
-    const queue = readOps();
-    const remaining: WriteOp[] = [];
-    for (const op of queue) {
+    const online = await isOnline();
+    if (!online) return;
+    // Always read the current head: writes added during a flush must never be
+    // replaced by an older snapshot of the queue.
+    while (readOps().length) {
+      const op = readOps().find(row => !boundUserId || row.userId === boundUserId);
+      if (!op) break;
       try {
         await applyOp(op);
       } catch (error) {
-        if (isDuplicate(error)) continue;
-        if (isOfflineError(error)) {
-          remaining.push({ ...op, attempts: op.attempts + 1, lastError: error instanceof Error ? error.message : 'Sem conexão' });
-          remaining.push(...queue.slice(queue.indexOf(op) + 1));
-          writeOps(remaining);
-          const meta = readMeta();
-          localStorage.setItem(META_KEY, JSON.stringify({ online: false, lastError: meta.lastError }));
-          return;
+        if (isDuplicate(error)) {
+          writeOps(readOps().filter(row => row.id !== op.id));
+          continue;
         }
-        const attempts = op.attempts + 1;
         const message = error instanceof Error ? error.message : 'Falha ao sincronizar';
-        localStorage.setItem(META_KEY, JSON.stringify({ online: true, lastError: message }));
-        if (attempts < 5) remaining.push({ ...op, attempts, lastError: message });
+        writeOps(readOps().map(row => row.id === op.id
+          ? { ...row, attempts: row.attempts + 1, lastError: message } : row));
+        if (isOfflineError(error)) {
+          localStorage.setItem(META_KEY, JSON.stringify({ online: false, lastError: message }));
+        } else {
+          localStorage.setItem(META_KEY, JSON.stringify({ online: true, lastError: message }));
+        }
+        // Preserve order and every pending operation, including permanent errors.
+        // A later operation may depend on this insert.
+        return;
       }
+      writeOps(readOps().filter(row => row.id !== op.id));
     }
-    writeOps(remaining);
-    if (!remaining.length) localStorage.setItem(META_KEY, JSON.stringify({ online: true, lastError: null }));
+    if (!readOps().length) localStorage.setItem(META_KEY, JSON.stringify({ online: true, lastError: null }));
   } finally {
     flushing = false;
     emit();
@@ -170,23 +174,25 @@ export async function syncWrite(input: Omit<WriteOp, 'id' | 'createdAt' | 'attem
     attempts: 0,
   };
   writeOps([...readOps(), op]);
-  const online = await isOnline();
-  if (!online) return 'queued';
-  await flushOutbox();
-  const stillThere = readOps().some(row => row.id === op.id);
-  if (!stillThere) return 'sent';
-  const failed = readOps().find(row => row.id === op.id);
-  if (failed?.lastError && !isOfflineError(new Error(failed.lastError))) {
-    throw new Error(failed.lastError);
-  }
+  // The durable local write is the completion of a user action. Network work
+  // continues independently and is retried by connectivity/realtime events.
+  void flushOutbox().catch(error => {
+    const message = error instanceof Error ? error.message : 'Falha ao sincronizar';
+    localStorage.setItem(META_KEY, JSON.stringify({ online: false, lastError: message }));
+    emit();
+  });
   return 'queued';
 }
 
 export function watchConnectivity(onOnline: () => void) {
   let lastOnline = true;
+  let lastRetryAt = 0;
   const timer = setInterval(() => {
     void isOnline().then(online => {
-      if (online && !lastOnline) onOnline();
+      if (online && (!lastOnline || (readOps().length > 0 && Date.now() - lastRetryAt >= 30_000))) {
+        lastRetryAt = Date.now();
+        onOnline();
+      }
       lastOnline = online;
     });
   }, 4000);

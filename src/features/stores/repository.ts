@@ -66,7 +66,7 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export async function searchStores(query = '', category: StoreCategory = 'all', coords?: Coordinates): Promise<Store[]> {
+export async function searchStores(query = '', category: StoreCategory = 'all', coords?: Coordinates, catalogOnly = false): Promise<Store[]> {
   const q = query.trim().slice(0, 160);
   const params = new URLSearchParams();
   if (q) {
@@ -106,8 +106,13 @@ export async function searchStores(query = '', category: StoreCategory = 'all', 
     }
     return category === 'all' || store.category === category;
   });
-  const matches = [...filteredRemote, ...filteredSubmitted];
-  return [...new Map(matches.map(store => [store.id, store])).values()];
+  const matches = [...new Map([...filteredRemote, ...filteredSubmitted].map(store => [store.id, store])).values()];
+  if (!catalogOnly || !matches.length) return matches;
+  const { data: priced, error: priceError } = await supabase.from('store_prices')
+    .select('store_id').in('store_id', matches.map(store => store.id));
+  if (priceError) throw priceError;
+  const withProducts = new Set((priced ?? []).map(row => row.store_id));
+  return matches.filter(store => withProducts.has(store.id));
 }
 
 export async function loadStoreDetails(store: Store): Promise<Store> {

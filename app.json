@@ -13,6 +13,7 @@
     "android": {
       "package": "com.evandromqs.caneto",
       "versionCode": 5,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0943F1",
         "foregroundImage": "./assets/android-icon-foreground.png",

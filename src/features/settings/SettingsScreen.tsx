@@ -29,6 +29,7 @@ export type SettingsScreenProps = {
   onOpenChangelog?: () => void;
   onOpenOnboarding?: () => void;
   onCheckUpdate?: () => void;
+  onOpenFeedback?: () => void;
   onSignOut?: () => void;
 };
 
@@ -115,6 +116,8 @@ export function SettingsScreen(props: SettingsScreenProps) {
       </View></Card>
     </>}
 
+    {props.onOpenFeedback && <Card><View style={styles.headingLeft}><Ionicons name="bulb-outline" size={20} color={theme.warning} /><SectionTitle>Ideias e Sugestões</SectionTitle></View><Text style={styles.toggleDescription}>Sugira novas funções e melhorias para a equipe de desenvolvimento.</Text><Pressable style={styles.feedbackButton} onPress={props.onOpenFeedback} accessibilityRole="button"><Ionicons name="bulb-outline" size={16} color={theme.warning} /><Text style={styles.feedbackButtonText}>Escrever ideia ou sugestão</Text></Pressable></Card>}
+
     <Card>
       <SectionTitle>Atualização do Aplicativo</SectionTitle>
       <View style={styles.aboutRow}>
@@ -149,4 +152,6 @@ const styles = StyleSheet.create({
   choiceRow: { flexDirection: 'row', gap: 8 }, choice: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 4 }, choiceSelected: { borderColor: theme.blue, backgroundColor: theme.blueSoft }, choiceText: { color: theme.muted, fontFamily: theme.font.semibold, fontSize: 12 }, choiceTextSelected: { color: theme.blue, fontFamily: theme.font.bold }, disabled: { opacity: 0.75 },
   toggleGroup: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, borderRadius: 12, overflow: 'hidden' }, toggleRow: { minHeight: 69, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: theme.border, padding: 11 }, toggleIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: '#E6EBF2', alignItems: 'center', justifyContent: 'center' }, toggleIconActive: { backgroundColor: theme.blueSoft }, toggleInfo: { flex: 1 }, toggleTitle: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 13 }, toggleDescription: { color: theme.subtle, fontFamily: theme.font.regular, fontSize: 11 },
   aboutRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 11, backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border }, signOut: { minHeight: 49, borderRadius: 15, borderWidth: 1, borderColor: '#FECACA', backgroundColor: theme.dangerSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, signOutText: { color: theme.danger, fontFamily: theme.font.bold, fontSize: 13 }, footerCard: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: theme.border, borderRadius: 15, paddingHorizontal: 13, paddingVertical: 8 }, footerImage: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: '#B8CAFB' }, footer: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 12 },
+  feedbackButton: { minHeight: 43, borderRadius: 12, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  feedbackButtonText: { color: theme.warning, fontFamily: theme.font.bold, fontSize: 13 },
 });

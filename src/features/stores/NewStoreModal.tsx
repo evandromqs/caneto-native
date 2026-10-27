@@ -31,7 +31,7 @@ function NewStoreDialog({ onClose }: { onClose: () => void }) {
   const [done, setDone] = useState(false);
   const coords: Coordinates | null = location.coords;
 
-  const usePhoto = (base64?: string | null) => {
+  const acceptPhoto = (base64?: string | null) => {
     if (!base64) { setError('Não foi possível ler a foto.'); return; }
     setPhoto(`data:image/jpeg;base64,${base64}`);
     setCameraOpen(false);
@@ -40,12 +40,12 @@ function NewStoreDialog({ onClose }: { onClose: () => void }) {
 
   const capture = async () => {
     const shot = await camera.current?.takePictureAsync({ base64: true, quality: 0.45 });
-    usePhoto(shot?.base64);
+    acceptPhoto(shot?.base64);
   };
 
   const fromGallery = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.45 });
-    if (!result.canceled) usePhoto(result.assets[0]?.base64);
+    if (!result.canceled) acceptPhoto(result.assets[0]?.base64);
   };
 
   const identify = async () => {

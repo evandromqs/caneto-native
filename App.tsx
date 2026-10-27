@@ -34,6 +34,8 @@ import {
   type SocialDataProps,
 } from './src/features/social/repository';
 import { SettingsScreen } from './src/features/settings/SettingsScreen';
+import { FeedbackModal } from './src/features/settings/FeedbackModal';
+import type { ProductSuggestion } from './src/features/products/search';
 import type { SettingsPreferences } from './src/features/settings/SettingsScreen';
 import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
@@ -43,6 +45,7 @@ import { checkAppUpdate, CURRENT_APP_VERSION, IS_EXPO_GO, type AppReleaseInfo } 
 import { UpdateModal } from './src/features/updater/UpdateModal';
 import { ScannerModal } from './src/features/capture/ScannerModal';
 import { bindSyncUser, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
+import { readListCache, subscribeListCache } from './src/core/sync/listCache';
 import { subscribeShoppingChanges } from './src/core/sync/realtime';
 
 const green = theme.blue;
@@ -76,11 +79,26 @@ export default function App() {
   const [trashItems, setTrashItems] = useState<DeletedShoppingItem[]>([]);
   const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncText, setSyncText] = useState('');
   const pendingDeletedItemRef = useRef<{ item: ShoppingItem; listId: string } | null>(null);
 
   const refresh = useCallback(async (userId: string) => setLists(await loadLists(userId)), []);
+  const addSuggestedProduct = useCallback(async (product: ProductSuggestion) => {
+    if (!session || !selectedId) return;
+    await addScannedItem(session.user.id, selectedId, {
+      name: product.name, categoryId: product.categoryId, quantity: 1,
+      unit: 'un', price: null, ean: product.ean, brand: product.brand, photoUrl: product.image,
+    });
+    await refresh(session.user.id);
+  }, [session, selectedId, refresh]);
+
+  useEffect(() => subscribeListCache(userId => {
+    if (session?.user.id !== userId) return;
+    const cached = readListCache<List>(userId);
+    if (cached) setLists(cached);
+  }), [session?.user.id]);
 
   useEffect(() => {
     checkAppUpdate().then(info => {
@@ -108,6 +126,7 @@ export default function App() {
   }, []);
   useEffect(() => subscribeSync(meta => {
     if (!meta.online) setSyncText(meta.pending ? `Sem conexão · ${meta.pending} alteração(ões) na fila` : 'Sem conexão · mostrando o que já está neste aparelho');
+    else if (meta.lastError && meta.pending) setSyncText(`${meta.pending} alteração(ões) aguardando sincronização: ${meta.lastError}`);
     else if (meta.flushing || meta.pending) setSyncText(meta.pending ? `Sincronizando ${meta.pending} alteração(ões) com o Supabase` : 'Sincronizando com o Supabase');
     else setSyncText(meta.lastError ? `Sincronização pendente: ${meta.lastError}` : '');
   }), []);
@@ -358,6 +377,7 @@ export default function App() {
     onToggle={item => { const legacy = selected.items.find(row => row.id === item.id); if (legacy) return toggle(legacy); }}
     onEdit={item => { if (!selected.is_completed && selected.permission !== 'viewer') { setModalItemId(item.id); setModal('item'); } }}
     onAdd={addProduct}
+    onAddProduct={addSuggestedProduct}
     onScan={() => setScannerOpen(true)}
     onRefresh={() => refresh(session.user.id)}
     trashCount={trashItems.length}
@@ -397,7 +417,13 @@ export default function App() {
         onJoinList={() => setModal('join')}
         onRefresh={() => refresh(session.user.id)}
       />}
-      {tab === 'stores' && <StoreExplorer />}
+      {tab === 'stores' && <StoreExplorer savedCatalog={lists.reduce<Record<string, Item[]>>((catalog, list) => {
+        if (list.store_id) catalog[list.store_id] = [...(catalog[list.store_id] ?? []), ...list.items];
+        return catalog;
+      }, {})} savedStores={lists.filter(list => !!list.store_id && !!list.store_name && list.items.length > 0).map(list => ({
+        id: list.store_id!, name: list.store_name!, category: 'other' as const, categoryLabel: 'Loja',
+        address: list.domain?.storeAddress || '', source: 'community' as const,
+      }))} />}
       {tab === 'social' && <SocialScreen
         {...(socialData ?? { friends: [] })}
         friendsLoading={socialLoading}
@@ -424,6 +450,7 @@ export default function App() {
         purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
         preferences={preferences}
         version={CURRENT_APP_VERSION}
+        onOpenFeedback={() => setFeedbackOpen(true)}
         onCheckUpdate={async () => {
           if (IS_EXPO_GO) {
             Alert.alert('Atualização', 'A atualização por APK está disponível no Caneto instalado, fora do Expo Go.');
@@ -550,6 +577,7 @@ export default function App() {
       }}
     />
     <UpdateModal visible={updateModalVisible} updateInfo={updateInfo} onClose={() => setUpdateModalVisible(false)} />
+    <FeedbackModal visible={feedbackOpen} onClose={() => setFeedbackOpen(false)} userId={session.user.id} email={session.user.email} name={profile?.displayName || undefined} />
     <ScannerModal visible={scannerOpen && !!selectedId} userId={session.user.id} onClose={() => setScannerOpen(false)} onConfirm={async result => {
       if (!selectedId) return;
       for (const item of result.items) await addScannedItem(session.user.id, selectedId, item);

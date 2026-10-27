@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingItem, ShoppingList } from '../../core/models/caneto';
@@ -8,7 +8,8 @@ import { AppText } from '../../ui/primitives';
 import { theme } from '../../ui/theme';
 import { UndoDeleteToast } from '../../ui/UndoDeleteToast';
 import { getErrorMessage } from '../../ui/error';
-import { CATEGORIES, categoryFor } from '../../core/categories';
+import { CATEGORIES, categoryFor, parseQuickItemInput } from '../../core/categories';
+import { searchProductSuggestions, type ProductSuggestion } from '../products/search';
 
 const suggestions = ['Leite', 'Pão Francês', 'Café', 'Ovos', 'Banana', 'Arroz', 'Feijão', 'Detergente', 'Açúcar', 'Manteiga'];
 const currency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -23,6 +24,7 @@ type Props = {
   onToggle: (item: ShoppingItem) => void | Promise<void>;
   onEdit: (item: ShoppingItem) => void;
   onAdd: (name: string) => void | Promise<void>;
+  onAddProduct?: (product: ProductSuggestion) => void | Promise<void>;
   onScan?: () => void;
   onRefresh: () => Promise<void>;
   showCategoryHeaders?: boolean;
@@ -44,6 +46,7 @@ export function ShoppingListScreen({
   onToggle,
   onEdit,
   onAdd,
+  onAddProduct,
   onScan,
   onRefresh,
   showCategoryHeaders = false,
@@ -58,11 +61,26 @@ export function ShoppingListScreen({
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [newItem, setNewItem] = useState('');
+  const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
+  const [searchingProducts, setSearchingProducts] = useState(false);
   const [cartExpanded, setCartExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [receiptExpanded, setReceiptExpanded] = useState(false);
   const readOnly = list.isCompleted || list.permission === 'viewer';
+  useEffect(() => {
+    const term = parseQuickItemInput(newItem).name.trim();
+    if (term.length < 2 || !onAddProduct) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setSearchingProducts(true);
+      void searchProductSuggestions(term, controller.signal)
+        .then(setProductSuggestions)
+        .catch(() => { if (!controller.signal.aborted) setProductSuggestions([]); })
+        .finally(() => { if (!controller.signal.aborted) setSearchingProducts(false); });
+    }, 350);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [newItem, onAddProduct]);
   const matching = useMemo(() => list.items.filter(item => item.name.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR'))), [list.items, search]);
   const pending = matching.filter(item => !item.checked);
   const purchased = matching.filter(item => item.checked).sort((a, b) => (b.checkedAt ?? b.createdAt) - (a.checkedAt ?? a.createdAt));
@@ -88,7 +106,7 @@ export function ShoppingListScreen({
     if (!clean || busy) return;
     void Promise.resolve(onAdd(clean)).then(() => setNewItem('')).catch(() => {});
   };
-  return <View style={styles.root}>
+  return <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     {deletedToastItem && onUndoDelete && onDismissDeleteToast && (
       <UndoDeleteToast
         item={deletedToastItem}
@@ -117,6 +135,11 @@ export function ShoppingListScreen({
       )}
       <Pressable style={styles.round} onPress={onOptions} accessibilityRole="button" accessibilityLabel="Opções da lista"><Ionicons name="ellipsis-vertical" size={21} color={theme.blue} /></Pressable>
     </View>
+    <Pressable style={styles.storeHeader} onPress={list.permission === 'owner' ? onSelectStore : undefined} accessibilityRole="button" accessibilityLabel={list.storeName ? `Local vinculado: ${list.storeName}` : 'Vincular local à lista'}>
+      <CanetoIcon name="store" size={19} color={theme.blue} />
+      <Text style={styles.storeHeaderText} numberOfLines={1}>{list.storeName || 'Vincular local'}</Text>
+      {list.permission === 'owner' && <Ionicons name="chevron-down" size={17} color={theme.blue} />}
+    </Pressable>
     <FlatList
       data={rows}
       keyExtractor={row => row.kind === 'cart' ? 'cart-heading' : row.kind === 'category' ? `category-${row.id}` : row.item.id}
@@ -140,7 +163,7 @@ export function ShoppingListScreen({
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: receiptExpanded }} accessibilityLabel="Nota fiscal" onPress={() => setReceiptExpanded(value => !value)} style={styles.receiptHeader}><View style={styles.receiptTitleRow}><Ionicons name="receipt-outline" size={19} color={theme.blue} /><AppText style={styles.receiptTitle}>Nota fiscal</AppText></View><AppText tone="caption">{list.completedAt ? new Date(list.completedAt).toLocaleDateString('pt-BR') : 'Ver comprovante'}</AppText><Ionicons name={receiptExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.muted} /></Pressable>
           {receiptExpanded && <View style={styles.receiptBody}>{!!list.receiptPhotoUrl && <Image source={{ uri: list.receiptPhotoUrl }} style={styles.receiptImage} resizeMode="contain" accessibilityLabel="Foto da nota fiscal" />}{!!list.receiptQrCode && <AppText tone="caption" selectable>QR da nota: {list.receiptQrCode}</AppText>}</View>}
         </View>}
-        {!list.isCompleted && <View style={styles.summary}><AppText style={styles.summaryText}>{list.items.filter(item => item.checked).length} de {list.items.length} itens marcados</AppText>{!!list.storeName && <AppText style={styles.storeName} numberOfLines={1}>{list.storeName}</AppText>}</View>}
+        {!list.isCompleted && <View style={styles.summary}><AppText style={styles.summaryText}>{list.items.filter(item => item.checked).length} de {list.items.length} itens marcados</AppText></View>}
       </>}
       ListEmptyComponent={<View style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="bag-handle-outline" size={25} color={theme.blue} /></View><AppText style={styles.emptyTitle}>{list.items.length ? 'Nenhum item encontrado' : list.isCompleted ? 'Nenhum item nesta lista finalizada' : 'Sua lista está vazia'}</AppText><AppText style={styles.emptyDescription}>{list.items.length ? 'Tente outro termo de busca.' : list.isCompleted ? 'Esta compra foi arquivada sem itens.' : 'Digite itens no rodapé ou toque nas sugestões:'}</AppText>{!readOnly && !list.items.length && <View style={styles.suggestions}>{suggestions.map(suggestion => <Pressable key={suggestion} style={styles.suggestion} onPress={() => add(suggestion)}><Ionicons name="add-circle-outline" size={14} color={theme.blue} /><AppText style={styles.suggestionText}>{suggestion}</AppText></Pressable>)}</View>}</View>}
       renderItem={({ item }) => item.kind === 'cart'
@@ -148,8 +171,18 @@ export function ShoppingListScreen({
         : item.kind === 'category' ? <CategoryHeader id={item.id} items={item.items} collapsed={!!collapsedCategories[item.id]} onToggle={() => setCollapsedCategories(current => ({ ...current, [item.id]: !current[item.id] }))} />
         : <ItemCard item={item.item} readOnly={readOnly} showCategoryBadge={!showCategoryHeaders} onToggle={() => void onToggle(item.item)} onEdit={() => onEdit(item.item)} />}
     />
-    {!readOnly && <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12) }]}>{!!onScan && <Pressable style={styles.scanButton} onPress={onScan} accessibilityLabel="Ler código, produto ou nota"><Ionicons name="scan-outline" size={22} color={theme.blue} /></Pressable>}<TextInput style={styles.composerInput} value={newItem} onChangeText={setNewItem} placeholder="Adicionar produto (ex: 2kg de maçã)" placeholderTextColor={theme.muted} onSubmitEditing={() => add()} returnKeyType="done" /><Pressable style={styles.addButton} onPress={() => add()} disabled={!newItem.trim() || busy} accessibilityLabel="Adicionar produto"><CanetoIcon name="plus" size={22} color="white" /></Pressable></View>}
-  </View>;
+    {!readOnly && !!newItem.trim() && !!onAddProduct && (searchingProducts || productSuggestions.length > 0) && <View style={styles.predictions}>
+      <Text style={styles.predictionsTitle}>Resultados com foto {searchingProducts ? '· buscando...' : ''}</Text>
+      {productSuggestions.map(product => <Pressable key={`${product.ean || product.name}`} style={styles.prediction} onPress={() => {
+        void Promise.resolve(onAddProduct(product)).then(() => { setNewItem(''); setProductSuggestions([]); }).catch(() => undefined);
+      }} accessibilityRole="button" accessibilityLabel={`Adicionar ${product.name}`}>
+        {product.image ? <Image source={{ uri: product.image }} style={styles.predictionImage} /> : <View style={styles.predictionImageFallback}><CanetoIcon name={product.categoryId} size={20} color={theme.blue} /></View>}
+        <View style={styles.flex}><Text style={styles.predictionName} numberOfLines={1}>{product.name}</Text><Text style={styles.predictionBrand} numberOfLines={1}>{product.brand || 'Open Food Facts'}</Text></View>
+        <Ionicons name="add-circle" size={22} color={theme.blue} />
+      </Pressable>)}
+    </View>}
+    {!readOnly && <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12) }]}>{!!onScan && <Pressable style={styles.scanButton} onPress={onScan} accessibilityLabel="Ler código, produto ou nota"><Ionicons name="scan-outline" size={22} color={theme.blue} /></Pressable>}<TextInput style={styles.composerInput} value={newItem} onChangeText={value => { setNewItem(value); setProductSuggestions([]); }} placeholder="Adicionar produto (ex: 2kg de maçã)" placeholderTextColor={theme.muted} onSubmitEditing={() => add()} returnKeyType="done" /><Pressable style={styles.addButton} onPress={() => add()} disabled={!newItem.trim() || busy} accessibilityLabel="Adicionar produto"><CanetoIcon name="plus" size={22} color="white" /></Pressable></View>}
+  </KeyboardAvoidingView>;
 }
 
 function CategoryHeader({ id, items, collapsed, onToggle }: { id: string; items: ShoppingItem[]; collapsed: boolean; onToggle: () => void }) {
@@ -189,6 +222,15 @@ function ItemCard({ item, readOnly, showCategoryBadge, onToggle, onEdit }: { ite
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.background }, flex: { flex: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 5 }, round: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  storeHeader: { minHeight: 42, marginHorizontal: 16, marginBottom: 8, borderRadius: 14, backgroundColor: theme.blueSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 },
+  storeHeaderText: { maxWidth: '78%', color: theme.blue, fontFamily: theme.font.bold, fontSize: 15, textAlign: 'center' },
+  predictions: { marginHorizontal: 12, marginBottom: 5, padding: 9, backgroundColor: theme.surface, borderRadius: 15, borderWidth: 1, borderColor: theme.border, maxHeight: 232, gap: 5, elevation: 5 },
+  predictionsTitle: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 12, marginBottom: 2 },
+  prediction: { minHeight: 47, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, backgroundColor: theme.surfaceMuted, padding: 5 },
+  predictionImage: { width: 38, height: 38, borderRadius: 9 },
+  predictionImageFallback: { width: 38, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.blueSoft },
+  predictionName: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 13 },
+  predictionBrand: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 11 },
   trashBadge: { position: 'absolute', top: -2, right: -2, backgroundColor: theme.danger, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: theme.background },
   trashBadgeText: { color: 'white', fontSize: 10, fontFamily: theme.font.bold },
   content: { paddingHorizontal: 16, paddingBottom: 24, gap: 8 },
