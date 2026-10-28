@@ -118,6 +118,25 @@ jobs:
           CANETO_GITHUB_RELEASE_SIGNING: '1'
         run: npx expo prebuild --platform android --clean
 
+      - name: Configure Gradle memory limits
+        run: |
+          GRADLE_PROPERTIES="android/gradle.properties"
+          JVM_ARGS='org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8'
+
+          if grep -q '^org.gradle.jvmargs=' "$GRADLE_PROPERTIES"; then
+            sed -i "s|^org.gradle.jvmargs=.*|$JVM_ARGS|" "$GRADLE_PROPERTIES"
+          else
+            echo "$JVM_ARGS" >> "$GRADLE_PROPERTIES"
+          fi
+
+          if grep -q '^org.gradle.workers.max=' "$GRADLE_PROPERTIES"; then
+            sed -i 's|^org.gradle.workers.max=.*|org.gradle.workers.max=2|' "$GRADLE_PROPERTIES"
+          else
+            echo 'org.gradle.workers.max=2' >> "$GRADLE_PROPERTIES"
+          fi
+
+          grep -E '^org.gradle.(jvmargs|workers.max)=' "$GRADLE_PROPERTIES"
+
       - name: Verify release signing configuration
         run: |
           grep -q 'signingConfig signingConfigs.release' android/app/build.gradle
