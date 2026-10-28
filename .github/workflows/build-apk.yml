@@ -123,6 +123,10 @@ jobs:
           GRADLE_PROPERTIES="android/gradle.properties"
           JVM_ARGS='org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8'
 
+          # Expo can generate this file without a trailing newline. Add one before
+          # appending properties so the inline-modules JSON is not corrupted.
+          printf '\n' >> "$GRADLE_PROPERTIES"
+
           if grep -q '^org.gradle.jvmargs=' "$GRADLE_PROPERTIES"; then
             sed -i "s|^org.gradle.jvmargs=.*|$JVM_ARGS|" "$GRADLE_PROPERTIES"
           else
@@ -153,11 +157,16 @@ jobs:
         working-directory: android
         run: |
           EXPO_ANDROID_DIR="$(cd ../node_modules/expo/android && pwd)"
+          WATCHED_DIRECTORIES="$(sed -n 's/^expo.inlineModules.watchedDirectories=//p' gradle.properties)"
+          test "$WATCHED_DIRECTORIES" = '[]' || {
+            echo "Invalid expo.inlineModules.watchedDirectories: $WATCHED_DIRECTORIES"
+            exit 1
+          }
           node --no-warnings --eval "require('expo/bin/autolinking')" \
             expo-modules-autolinking mirror-kotlin-inline-modules \
             --kotlin-files-mirror-directory "$EXPO_ANDROID_DIR/src/main/java/inline/modules" \
             --inline-modules-list-directory "$EXPO_ANDROID_DIR/build/inline/modules" \
-            --watched-directories-serialized '[]'
+            --watched-directories-serialized "$WATCHED_DIRECTORIES"
 
       - name: Verify release signing configuration
         run: |
