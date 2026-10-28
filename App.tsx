@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text as NativeText, TextInput, useColorScheme, View, type TextProps } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Easing, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text as NativeText, TextInput, useColorScheme, View, type TextProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from '@expo-google-fonts/poppins';
 import type { Session } from '@supabase/supabase-js';
@@ -47,8 +47,11 @@ import { ScannerModal } from './src/features/capture/ScannerModal';
 import { bindSyncUser, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
 import { readListCache, subscribeListCache } from './src/core/sync/listCache';
 import { subscribeShoppingChanges } from './src/core/sync/realtime';
+import { LaunchSplash } from './src/features/launch/LaunchSplash';
 
 const green = theme.blue;
+type TabId = 'lists' | 'stores' | 'social' | 'settings';
+const tabOrder: TabId[] = ['lists', 'stores', 'social', 'settings'];
 const errorMessage = (error: unknown) => Alert.alert('Não foi possível continuar', getErrorMessage(error));
 const Text = ({ style, ...props }: TextProps) => <NativeText {...props} style={[{ fontFamily: theme.font.regular }, style]} />;
 
@@ -57,6 +60,7 @@ export default function App() {
   const [fontsLoaded, fontError] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold });
   const [session, setSession] = useState<Session | null>(null);
   const [starting, setStarting] = useState(true);
+  const [launchReady, setLaunchReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,7 +75,7 @@ export default function App() {
   const [socialResults, setSocialResults] = useState<SocialSearchResult[]>([]);
   const [socialSearching, setSocialSearching] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<'lists' | 'stores' | 'social' | 'settings'>('lists');
+  const [tab, setTab] = useState<TabId>('lists');
   const [modal, setModal] = useState<'new' | 'list' | 'item' | 'join' | 'share' | 'profile' | 'payment' | 'history' | 'store' | 'trash' | null>(null);
   const [modalListId, setModalListId] = useState<string | null>(null);
   const [modalItemId, setModalItemId] = useState<string | null>(null);
@@ -84,6 +88,38 @@ export default function App() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncText, setSyncText] = useState('');
   const pendingDeletedItemRef = useRef<{ item: ShoppingItem; listId: string } | null>(null);
+  const [tabTranslateX] = useState(() => new Animated.Value(0));
+  const [tabOpacity] = useState(() => new Animated.Value(1));
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLaunchReady(true), 900);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const selectTab = useCallback((nextTab: TabId) => {
+    tabTranslateX.stopAnimation();
+    tabOpacity.stopAnimation();
+
+    if (nextTab === tab) {
+      tabTranslateX.setValue(0);
+      Animated.sequence([
+        Animated.timing(tabTranslateX, { toValue: -5, duration: 70, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(tabTranslateX, { toValue: 0, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+      return;
+    }
+
+    const direction = tabOrder.indexOf(nextTab) > tabOrder.indexOf(tab) ? 1 : -1;
+    tabTranslateX.setValue(direction * 26);
+    tabOpacity.setValue(0.88);
+    setTab(nextTab);
+    requestAnimationFrame(() => {
+      Animated.parallel([
+        Animated.timing(tabTranslateX, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(tabOpacity, { toValue: 1, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      ]).start();
+    });
+  }, [tab, tabOpacity, tabTranslateX]);
 
   const refresh = useCallback(async (userId: string) => setLists(await loadLists(userId)), []);
   const addSuggestedProduct = useCallback(async (product: ProductSuggestion) => {
@@ -352,7 +388,7 @@ export default function App() {
   const isDark = preferences.theme === 'dark' || (preferences.theme === 'system' && systemScheme === 'dark');
   setAppTheme(isDark);
 
-  if (starting || (!fontsLoaded && !fontError)) return <SafeAreaView style={[styles.center, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]}><ActivityIndicator size="large" color={green} /></SafeAreaView>;
+  if (starting || (!fontsLoaded && !fontError) || !launchReady) return <LaunchSplash dark={isDark} />;
   if (!session) return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior="padding"><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
     <View style={styles.brandRow}><Image source={require('./assets/logo.webp')} style={styles.brandLogo} /><Text style={styles.brand}>Caneto<Text style={styles.tm}>™</Text></Text></View>
     <Text style={styles.tagline}>Caneto - A lista que te entende</Text>
@@ -388,7 +424,7 @@ export default function App() {
     onUndoDelete={handleUndoDelete}
     onDismissDeleteToast={handleCommitDelete}
   /> : <View style={styles.tabContentContainer}>
-    <View style={styles.screenArea}>
+    <Animated.View style={[styles.screenArea, { opacity: tabOpacity, transform: [{ translateX: tabTranslateX }] }]}>
       {tab === 'lists' && <ListsOverview
         lists={lists.map(list => list.domain).filter((list): list is ShoppingList => !!list)}
         activeListId={selectedId ?? undefined}
@@ -505,7 +541,7 @@ export default function App() {
         onOpenHistory={() => setModal('history')}
         onSignOut={() => { void supabase.auth.signOut(); }}
       />}
-    </View>
+    </Animated.View>
     <View style={[styles.dockContainer, { paddingBottom: Math.max(insets.bottom, 10) }]} pointerEvents="box-none">
       <View style={[styles.dock, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
         {([
@@ -517,8 +553,8 @@ export default function App() {
           const isActive = tab === entry.id;
           return <Pressable
             key={entry.id}
-            style={[styles.dockButton, isActive && styles.dockActive]}
-            onPress={() => setTab(entry.id)}
+            style={({ pressed }) => [styles.dockButton, isActive && styles.dockActive, pressed && styles.dockPressed]}
+            onPress={() => selectTab(entry.id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={entry.label}
@@ -630,6 +666,7 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   dockContainer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, zIndex: 100 },
   dock: { flexDirection: 'row', backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 22, padding: 6, gap: 6, minHeight: 58, alignItems: 'center', justifyContent: 'space-between', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 8 },
   dockButton: { flex: 1, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 16, flexDirection: 'row', gap: 6, paddingHorizontal: 6 },
+  dockPressed: { opacity: 0.9, transform: [{ scale: 0.96 }] },
   dockActive: { flex: 2.3, backgroundColor: '#0943F1', shadowColor: '#0943F1', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 6, elevation: 3 },
   dockActiveText: { color: '#FFFFFF', fontFamily: theme.font.semibold, fontSize: 14 },
 }));
