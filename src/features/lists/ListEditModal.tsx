@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { AppButton, AppField, AppText } from '../../ui/primitives';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 
 type MaybePromise = void | Promise<void>;
@@ -108,7 +108,7 @@ function ListEditDialog({ list, trashCount, onOpenTrash, onClose, onSave, onShar
   </ModalSheet>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   form: { marginBottom: 12 },
   saveButton: { width: '100%', minHeight: 48, marginTop: 4 },
   actionList: { borderTopWidth: 1, borderColor: theme.border, marginTop: 14, paddingTop: 6 },
@@ -118,4 +118,4 @@ const styles = StyleSheet.create({
   errorText: { color: theme.danger, marginTop: 12, fontFamily: theme.font.semibold, fontSize: 13 },
   footer: { marginTop: 14, alignItems: 'center' },
   cancelButton: { width: '100%', minHeight: 44 },
-});
+}));

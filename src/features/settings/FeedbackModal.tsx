@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { CANETO_API } from '../../core/api';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 
 type Category = 'improvement' | 'idea' | 'bug' | 'other';
 const categories: { id: Category; label: string }[] = [
@@ -48,7 +48,7 @@ export function FeedbackModal({ visible, onClose, userId, email, name }: {
   </ModalSheet>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   form: { gap: 10 }, label: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 13 },
   categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   chip: { borderWidth: 1, borderColor: theme.border, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: theme.surfaceMuted },
@@ -59,4 +59,4 @@ const styles = StyleSheet.create({
   submit: { minHeight: 48, borderRadius: 12, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center' },
   submitText: { color: 'white', fontFamily: theme.font.bold },
   error: { color: theme.danger, fontFamily: theme.font.regular }, success: { color: theme.success, fontFamily: theme.font.bold },
-});
+}));

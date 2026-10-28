@@ -1,5 +1,7 @@
 /** Visual design tokens synchronized with caneto_app_web/app/globals.css. */
 
+type StyleMap = Record<string, object>;
+
 export const lightPalette = {
   blue: '#0943F1',
   blueDark: '#0732B8',
@@ -48,8 +50,7 @@ export function getThemeColors(isDark: boolean) {
   return isDark ? darkPalette : lightPalette;
 }
 
-export const theme = {
-  ...lightPalette,
+const fixedTokens = {
   font: {
     regular: 'Poppins_400Regular',
     semibold: 'Poppins_600SemiBold',
@@ -62,4 +63,36 @@ export const theme = {
   dialog: { horizontalMargin: 12, maxWidth: 512, backdrop: 'rgba(2, 6, 23, 0.80)' },
 } as const;
 
-export type Theme = typeof theme;
+type Palette = { [Key in keyof typeof lightPalette]: string };
+export type Theme = Palette & typeof fixedTokens;
+
+/**
+ * Shared live theme. Inline color reads always use the active palette, while
+ * createThemedStyles refreshes StyleSheet objects that captured palette values.
+ */
+export const theme: Theme = {
+  ...lightPalette,
+  ...fixedTokens,
+};
+
+let darkModeActive = false;
+const refreshStyleSheets = new Set<() => void>();
+
+export function setAppTheme(isDark: boolean): void {
+  if (darkModeActive === isDark) return;
+  darkModeActive = isDark;
+  Object.assign(theme, isDark ? darkPalette : lightPalette);
+  refreshStyleSheets.forEach(refresh => refresh());
+}
+
+export function createThemedStyles<T extends StyleMap>(factory: (activeTheme: Theme) => T): T {
+  let current = factory(theme);
+  refreshStyleSheets.add(() => { current = factory(theme); });
+
+  return new Proxy({} as T, {
+    get: (_target, property) => current[property as keyof T],
+    has: (_target, property) => property in current,
+    ownKeys: () => Reflect.ownKeys(current),
+    getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }),
+  });
+}

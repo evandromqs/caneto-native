@@ -3,7 +3,7 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Te
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppButton } from '../../ui/primitives';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 
 type MaybePromise = void | Promise<void>;
@@ -54,7 +54,7 @@ function CreateListDialog({ listCount, onClose, onCreate, onJoinList, onScanList
   </Modal>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.60)', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   keyboardArea: { width: '100%', maxWidth: 512, alignSelf: 'center' },
   panel: { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, borderRadius: 24, padding: 20, gap: 16, elevation: 16 },
@@ -62,4 +62,4 @@ const styles = StyleSheet.create({
   input: { minHeight: 54, borderRadius: 16, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, paddingHorizontal: 16, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 16 },
   footer: { flexDirection: 'row', gap: 10, marginTop: 4 },
   footerButton: { flex: 1, minHeight: 48 },
-});
+}));

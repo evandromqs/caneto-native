@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { isExpoGo, requestPasswordReset, signInWithGoogle } from './auth';
 import type { GoogleSignInResult } from './auth';
 
@@ -69,14 +69,14 @@ export function AccountAuthActions({ onGoogleResult, onError }: Props) {
   </>;
 }
 
-const styles = StyleSheet.create({
-  google: { borderColor: theme.borderStrong, borderWidth: 1, borderRadius: 14, minHeight: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 20 },
+const styles = createThemedStyles(theme => StyleSheet.create({
+  google: { borderColor: theme.borderStrong, borderWidth: 1, borderRadius: 14, minHeight: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface, paddingHorizontal: 20 },
   googleText: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15 },
   forgot: { alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: 8 },
   forgotText: { color: theme.blue, fontFamily: theme.font.semibold, fontSize: 14 },
   hint: { color: theme.subtle, fontFamily: theme.font.regular, fontSize: 12, textAlign: 'center', marginTop: 8 },
   backdrop: { flex: 1, backgroundColor: theme.dialog.backdrop, justifyContent: 'center', paddingHorizontal: 20 },
-  dialog: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, gap: 12 },
+  dialog: { backgroundColor: theme.surface, borderRadius: 24, padding: 24, gap: 12 },
   title: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 21 },
   description: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 14 },
   input: { minHeight: 52, borderRadius: 12, borderWidth: 1, borderColor: theme.borderStrong, paddingHorizontal: 14, color: theme.ink, fontFamily: theme.font.regular },
@@ -85,4 +85,4 @@ const styles = StyleSheet.create({
   primaryText: { color: '#FFFFFF', fontFamily: theme.font.semibold, fontSize: 15 },
   cancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   cancelText: { color: theme.muted, fontFamily: theme.font.semibold, fontSize: 14 },
-});
+}));

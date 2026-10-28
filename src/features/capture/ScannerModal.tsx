@@ -7,7 +7,7 @@ import { CANETO_API } from '../../core/api';
 import { parseNfceQrCode } from '../../core/scanner/nfce';
 import { assertCanScan, consumeAiScan, readScanQuota, type ScanQuota } from '../../core/scanner/quota';
 import { canetoData } from '../../core/data/supabaseAdapter';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 
 export type CapturedItem = {
@@ -223,7 +223,7 @@ function ScannerDialog({ userId, purpose, onClose, onConfirm }: {
   </SafeAreaView></Modal>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   fullscreen: { flex: 1, backgroundColor: '#020817', paddingHorizontal: 16, gap: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 10 },
   close: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1E293B', alignItems: 'center', justifyContent: 'center' },
@@ -250,4 +250,4 @@ const styles = StyleSheet.create({
   field: { minHeight: 42, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 10, paddingHorizontal: 10, color: theme.ink, fontFamily: theme.font.regular },
   flexField: { flex: 1 },
   shortField: { width: 75 },
-});
+}));

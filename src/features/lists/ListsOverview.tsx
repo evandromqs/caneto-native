@@ -6,7 +6,7 @@ import type { ShoppingList } from '../../core/models/caneto';
 import { listCapabilities } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { AppButton, AppText, IconButton, SurfaceCard } from '../../ui/primitives';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { listMetrics, selectVisibleLists, type ListsSortBy, type ListsSubTab } from './selectors';
 import { CreateListModal } from './CreateListModal';
 import { getErrorMessage } from '../../ui/error';
@@ -157,7 +157,7 @@ function ActionRows({ list, onClose, props, execute, confirmDelete }: { list: Sh
   </View>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.background },
   listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 112 },
   top: { paddingBottom: 13, paddingTop: 8, gap: 12, backgroundColor: theme.background, borderRadius: 16 },
@@ -179,4 +179,4 @@ const styles = StyleSheet.create({
   floating: { position: 'absolute', bottom: 92, alignSelf: 'center' }, newList: { borderRadius: 28, paddingHorizontal: 20, elevation: 6 },
   modalLabel: { fontFamily: theme.font.bold, marginBottom: 10 }, sortRow: { flexDirection: 'row', gap: 7 }, sortButton: { flex: 1, minHeight: 48, backgroundColor: theme.surfaceMuted, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }, sortActive: { backgroundColor: theme.blue }, sortText: { fontFamily: theme.font.bold, fontSize: 13, textAlign: 'center' }, sortTextActive: { color: theme.surface }, filterActions: { borderTopWidth: 1, borderColor: theme.border, flexDirection: 'row', gap: 10, marginTop: 20, paddingTop: 16 }, filterButton: { flex: 1 },
   actionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderColor: theme.border }, actionText: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold }, dangerText: { color: theme.danger },
-});
+}));

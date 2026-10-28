@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { loadProfile, saveProfile, type Profile } from './repository';
 import { getErrorMessage } from '../../ui/error';
 
@@ -26,8 +26,8 @@ function ProfileDialog({ userId, email, onClose }: { userId: string; email: stri
   </ModalSheet>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   label: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 14, marginBottom: 7 }, input: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, color: theme.ink, borderRadius: 12, minHeight: 48, paddingHorizontal: 13, fontSize: 16, fontFamily: theme.font.regular, marginBottom: 17 },
   segment: { flexDirection: 'row', gap: 8, marginBottom: 17 }, segmentButton: { flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 12, alignItems: 'center' }, segmentActive: { backgroundColor: theme.blue, borderColor: theme.blue }, segmentText: { color: theme.ink, fontFamily: theme.font.semibold }, segmentTextActive: { color: 'white' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }, primary: { backgroundColor: theme.blue, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }, primaryText: { color: 'white', fontFamily: theme.font.bold, fontSize: 15 }, disabled: { opacity: 0.5 }, message: { color: theme.danger, fontFamily: theme.font.regular, marginBottom: 10 },
-});
+}));

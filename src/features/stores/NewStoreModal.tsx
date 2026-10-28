@@ -8,7 +8,7 @@ import { CANETO_API } from '../../core/api';
 import { decodeBase64 } from '../../core/bytes';
 import { generateUUID } from '../../ui/error';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { STORE_CATEGORIES, type Coordinates, type StoreCategory } from './model';
 import { useDeviceLocation } from './useDeviceLocation';
 
@@ -123,7 +123,7 @@ function NewStoreDialog({ onClose }: { onClose: () => void }) {
   </ModalSheet>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   gap: { gap: 12 }, row: { flexDirection: 'row', gap: 8 },
   camera: { height: 240, borderRadius: 16, overflow: 'hidden', backgroundColor: '#020817' },
   preview: { width: '100%', height: 160, borderRadius: 12 },
@@ -143,4 +143,4 @@ const styles = StyleSheet.create({
   error: { color: theme.danger, fontFamily: theme.font.regular },
   body: { color: theme.ink, fontFamily: theme.font.regular, lineHeight: 22 },
   disabled: { opacity: 0.5 },
-});
+}));

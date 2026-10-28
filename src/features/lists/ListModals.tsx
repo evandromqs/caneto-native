@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import type { Item, List } from '../../data';
 
 type NewProps = { visible: boolean; busy: boolean; onClose: () => void; onCreate: (name: string) => Promise<void> };
@@ -61,11 +61,11 @@ function Action({ icon, label, onPress, danger = false }: { icon: keyof typeof I
   return <Pressable style={styles.action} onPress={onPress}><Ionicons name={icon} size={19} color={danger ? theme.danger : theme.blue} /><Text style={[styles.actionText, danger && { color: theme.danger }]}>{label}</Text><Ionicons name="chevron-forward" size={16} color="#94A3B8" /></Pressable>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   label: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 14, marginBottom: 7 },
   input: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, color: theme.ink, borderRadius: 12, minHeight: 48, paddingHorizontal: 13, fontSize: 16, fontFamily: theme.font.regular, marginBottom: 17 },
   primary: { backgroundColor: theme.blue, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 3 }, primaryText: { color: 'white', fontFamily: theme.font.bold, fontSize: 15 }, disabled: { opacity: 0.5 },
   divider: { height: 1, backgroundColor: theme.border, marginVertical: 17 }, action: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 5 }, actionText: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15 },
   quantityRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start' }, quantityInput: { flex: 1, textAlign: 'center' }, stepper: { width: 48, height: 48, borderRadius: 12, backgroundColor: theme.blueSoft, alignItems: 'center', justifyContent: 'center' }, stepperText: { color: theme.blue, fontSize: 24, fontFamily: theme.font.bold },
   unitRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 18 }, unit: { borderWidth: 1, borderColor: theme.border, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 11 }, unitActive: { backgroundColor: theme.blue, borderColor: theme.blue }, unitText: { color: theme.ink, fontFamily: theme.font.semibold }, unitTextActive: { color: 'white' },
-});
+}));

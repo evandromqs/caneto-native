@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingItem } from '../core/models/caneto';
-import { theme } from './theme';
+import { createThemedStyles } from './theme';
 
 export interface UndoDeleteToastProps {
   item: ShoppingItem | null;
@@ -113,7 +113,7 @@ export function UndoDeleteToast({ item, onUndo, onDismiss, durationMs = 5000 }: 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   container: {
     position: 'absolute',
     top: Platform.OS === 'android' ? 10 : 16,
@@ -196,4 +196,4 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: theme.blue,
   },
-});
+}));

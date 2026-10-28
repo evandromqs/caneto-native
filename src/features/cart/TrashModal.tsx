@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import type { DeletedShoppingItem } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 import { formatRemainingTime, SIX_HOURS_MS } from './trashRepository';
 
@@ -214,12 +214,12 @@ function TrashDialog({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   actionBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.surfaceMuted,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: theme.border,
     borderRadius: 14,
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -385,11 +385,11 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 18,
     borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.surfaceMuted,
   },
   closeFooterText: {
     fontFamily: theme.font.bold,
     color: theme.ink,
     fontSize: 14,
   },
-});
+}));

@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAccountRedirect } from '../../features/account/useAccountRedirect';
 import { RecoveryPasswordForm } from '../../features/account/RecoveryPasswordForm';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 
 export default function AccountCallbackRoute() {
   const [status, setStatus] = useState<'checking' | 'recovery' | 'error'>('checking');
@@ -33,11 +33,11 @@ export default function AccountCallbackRoute() {
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.background },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: 20, gap: 18 },
   message: { color: theme.muted, fontFamily: theme.font.regular, textAlign: 'center' },
   error: { color: theme.danger, fontFamily: theme.font.semibold, textAlign: 'center' },
   button: { minHeight: 50, borderRadius: 12, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center' },
   buttonText: { color: 'white', fontFamily: theme.font.semibold },
-});
+}));

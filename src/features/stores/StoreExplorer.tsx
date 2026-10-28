@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { CanetoIcon } from '../../ui/CanetoIcon';
 import { getErrorMessage } from '../../ui/error';
 import { STORE_CATEGORIES, normalizeStoreText, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
@@ -140,7 +140,7 @@ function StoreCard({ store, selected, onPress, onDetails, picker }: { store: Sto
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   explorer: { flex: 1, minHeight: 340, backgroundColor: theme.background }, pickerBody: { height: 530 },
   createStore: { position: 'absolute', bottom: 104, alignSelf: 'center', minHeight: 48, borderRadius: 24, backgroundColor: theme.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 22, elevation: 8, zIndex: 20 }, createStoreText: { color: 'white', fontFamily: theme.font.bold },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, borderRadius: 16, minHeight: 48, paddingHorizontal: 13 },
@@ -162,4 +162,4 @@ const styles = StyleSheet.create({
   secondary: { width: '100%', borderWidth: 1, borderColor: theme.blue, borderRadius: 14, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }, secondaryText: { color: theme.blue, fontFamily: theme.font.semibold, fontSize: 15 },
   primary: { width: '100%', backgroundColor: theme.blue, borderRadius: 14, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10 }, primaryText: { color: 'white', fontFamily: theme.font.bold, fontSize: 15 },
   error: { color: theme.danger, fontFamily: theme.font.regular, padding: 8 }, unlink: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, padding: 8, borderRadius: 11, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFE4E6' }, unlinkText: { color: theme.danger, fontFamily: theme.font.bold, fontSize: 11 },
-});
+}));

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from './theme';
+import { createThemedStyles, theme } from './theme';
 
 type Props = {
   visible: boolean;
@@ -35,7 +35,7 @@ export function ModalSheet({ visible, title, subtitle, onClose, children, footer
   </Modal>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: theme.dialog.backdrop, justifyContent: 'center', paddingHorizontal: theme.dialog.horizontalMargin, paddingVertical: 12 },
   keyboardArea: { width: '100%', maxWidth: theme.dialog.maxWidth, alignSelf: 'center', maxHeight: '100%' },
   sheet: { backgroundColor: theme.surface, borderRadius: theme.radius.xxl, maxHeight: '100%', overflow: 'hidden', borderWidth: 1, borderColor: theme.border },
@@ -46,4 +46,4 @@ const styles = StyleSheet.create({
   close: { width: theme.touchTarget, height: theme.touchTarget, borderRadius: theme.radius.lg, alignItems: 'center', justifyContent: 'center' },
   body: { padding: 18, paddingBottom: 20 },
   footer: { borderTopWidth: 1, borderTopColor: theme.border, padding: 16 },
-});
+}));

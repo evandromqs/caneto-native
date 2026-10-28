@@ -12,7 +12,7 @@ import {
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
-import { theme } from './theme';
+import { createThemedStyles, theme } from './theme';
 
 type TextTone = 'body' | 'heading' | 'muted' | 'caption';
 
@@ -77,7 +77,7 @@ export function SegmentedTabs<T extends string>({ options, selected, onChange, s
   </View>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   text: { color: theme.ink, fontFamily: theme.font.regular, fontSize: 16, lineHeight: 24 },
   heading: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 20, lineHeight: 28 },
   muted: { color: theme.muted },
@@ -102,4 +102,4 @@ const styles = StyleSheet.create({
   segmentActive: { backgroundColor: theme.blue },
   segmentText: { fontFamily: theme.font.semibold, color: theme.muted, fontSize: 15, textAlign: 'center' },
   segmentTextActive: { color: theme.surface },
-});
+}));

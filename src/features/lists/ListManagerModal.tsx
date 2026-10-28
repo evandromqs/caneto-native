@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { AppButton, AppText, IconButton, SurfaceCard } from '../../ui/primitives';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 
 type MaybePromise = void | Promise<void>;
@@ -78,11 +78,11 @@ function ListManagerDialog({ lists, activeListId, onClose, onSelectList, onCreat
   </ModalSheet>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   createRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   createInput: { flex: 1, minWidth: 0, minHeight: 48, borderWidth: 1, borderColor: theme.border, borderRadius: theme.radius.lg, paddingHorizontal: 12, color: theme.ink, backgroundColor: theme.background, fontFamily: theme.font.regular, fontSize: 16 },
   row: { padding: 11, borderRadius: theme.radius.lg, marginBottom: 8 }, activeRow: { borderColor: theme.blue },
   listRow: { flexDirection: 'row', alignItems: 'center' }, listInfo: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 }, listName: { flexShrink: 1, color: theme.ink, fontFamily: theme.font.bold, fontSize: 16 }, activeName: { color: theme.blue }, activeBadge: { color: theme.blue, backgroundColor: theme.blueSoft, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 7, fontFamily: theme.font.bold, fontSize: 12 },
   renameRow: { flexDirection: 'row', alignItems: 'center' }, renameInput: { flex: 1, minWidth: 0, minHeight: 44, borderWidth: 1, borderColor: theme.blue, borderRadius: 10, paddingHorizontal: 10, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 16 },
-});
+}));

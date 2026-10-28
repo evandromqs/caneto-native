@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import type { AppReleaseInfo } from './updaterService';
 import { isNewerVersion, openApkDownload } from './updaterService';
 
@@ -117,7 +117,7 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     borderRadius: 24,
     padding: 22,
     alignItems: 'center',
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   versionBadge: {
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: theme.surfaceMuted,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -202,12 +202,12 @@ const styles = StyleSheet.create({
   },
   notesBox: {
     width: '100%',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.background,
     borderRadius: 14,
     padding: 12,
     marginBottom: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.border,
   },
   notesTitle: {
     fontSize: 12,
@@ -270,4 +270,4 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginBottom: 12,
   },
-});
+}));

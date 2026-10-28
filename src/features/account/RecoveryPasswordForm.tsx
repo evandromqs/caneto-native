@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { updatePassword } from './auth';
 
 type Props = { onComplete: () => void };
@@ -36,12 +36,12 @@ export function RecoveryPasswordForm({ onComplete }: Props) {
   </View>;
 }
 
-const styles = StyleSheet.create({
-  container: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, gap: 12 },
+const styles = createThemedStyles(theme => StyleSheet.create({
+  container: { backgroundColor: theme.surface, borderRadius: 20, padding: 20, gap: 12 },
   title: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 21 },
   description: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 14 },
   input: { minHeight: 52, borderRadius: 12, borderWidth: 1, borderColor: theme.borderStrong, paddingHorizontal: 14, color: theme.ink, fontFamily: theme.font.regular },
   error: { color: theme.danger, fontFamily: theme.font.regular, fontSize: 13 },
   button: { minHeight: 52, borderRadius: 12, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center' },
   buttonText: { color: '#FFFFFF', fontFamily: theme.font.semibold, fontSize: 15 },
-});
+}));

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import type { List } from '../../data';
 import { ensureShareCode, loadAccessRequests, respondAccessRequest, type AccessRequest } from './repository';
 import { getErrorMessage } from '../../ui/error';
@@ -47,10 +47,10 @@ function ShareListDialog({ list, onClose, onChanged }: { list: List; onClose: ()
   </ModalSheet>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   explanation: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 14, lineHeight: 22, marginBottom: 18 },
   label: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 14, marginBottom: 7 },
   input: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, color: theme.ink, borderRadius: 12, minHeight: 48, paddingHorizontal: 13, fontSize: 17, fontFamily: theme.font.bold, marginBottom: 14, letterSpacing: 2 },
   primary: { backgroundColor: theme.blue, borderRadius: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }, primaryText: { color: 'white', fontFamily: theme.font.bold, fontSize: 15 }, disabled: { opacity: 0.5 },
   message: { color: theme.muted, fontFamily: theme.font.regular, marginVertical: 12 }, codeBox: { borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 13, marginTop: 14 }, code: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 19, letterSpacing: 2 }, requestsTitle: { fontFamily: theme.font.bold, color: theme.ink, fontSize: 15, marginTop: 20, marginBottom: 8 }, request: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderTopWidth: 1, borderTopColor: theme.border }, requestName: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold },
-});
+}));

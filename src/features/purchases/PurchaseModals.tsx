@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { List } from '../../data';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { theme } from '../../ui/theme';
+import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 import { ScannerModal } from '../capture/ScannerModal';
 import { loadHistory, type PaymentMethod, type Purchase, type PurchaseReceipt } from './repository';
@@ -120,7 +120,7 @@ export function HistoryModal({ visible, userId, onClose, onRecreate }: { visible
   </ModalSheet>;
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(theme => StyleSheet.create({
   steps: { flexDirection: 'row', gap: 6, marginBottom: 14 }, step: { flex: 1, height: 6, borderRadius: 4, backgroundColor: theme.border }, stepOn: { backgroundColor: theme.blue },
   summary: { padding: 16, backgroundColor: theme.blueSoft, borderRadius: 14, marginBottom: 18 }, summaryLabel: { color: theme.muted, fontFamily: theme.font.semibold }, total: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 20 }, label: { color: theme.ink, fontFamily: theme.font.regular, fontSize: 14, marginBottom: 10 },
   method: { flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 13, marginBottom: 8 }, methodActive: { borderColor: theme.blue, backgroundColor: theme.blueSoft }, methodText: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 14 },
@@ -129,4 +129,4 @@ const styles = StyleSheet.create({
   secondary: { borderWidth: 1, borderColor: theme.blue, borderRadius: 12, padding: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 12 }, secondaryText: { color: theme.blue, fontFamily: theme.font.semibold },
   row: { flexDirection: 'row', gap: 8 }, rowButton: { flex: 1 }, input: { borderWidth: 1, borderColor: theme.border, borderRadius: 12, padding: 12, color: theme.ink, fontFamily: theme.font.bold, fontSize: 18 },
   disabled: { opacity: 0.5 }, empty: { color: theme.muted, fontFamily: theme.font.regular, textAlign: 'center', marginVertical: 30 }, historyCard: { padding: 15, borderWidth: 1, borderColor: theme.border, borderRadius: 14, marginBottom: 10 }, historyName: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 16 }, muted: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 13 }, recreate: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 8 }, recreateText: { color: theme.blue, fontFamily: theme.font.semibold },
-});
+}));
