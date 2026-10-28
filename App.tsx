@@ -41,7 +41,7 @@ import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
-import { checkAppUpdate, CURRENT_APP_VERSION, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
+import { checkAndApplyOnlineUpdate, checkAppUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
 import { ScannerModal } from './src/features/capture/ScannerModal';
 import { bindSyncUser, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
@@ -79,6 +79,7 @@ export default function App() {
   const [trashItems, setTrashItems] = useState<DeletedShoppingItem[]>([]);
   const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [checkingOnlineUpdate, setCheckingOnlineUpdate] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [syncText, setSyncText] = useState('');
@@ -451,6 +452,24 @@ export default function App() {
         purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
         preferences={preferences}
         version={CURRENT_APP_VERSION}
+        onlineUpdate={CURRENT_OTA_UPDATE}
+        checkingOnlineUpdate={checkingOnlineUpdate}
+        onCheckOnlineUpdate={async () => {
+          if (checkingOnlineUpdate) return;
+          setCheckingOnlineUpdate(true);
+          try {
+            const result = await checkAndApplyOnlineUpdate();
+            if (result === 'current') {
+              Alert.alert('Atualização online', `Você já está usando a atualização mais recente (${CURRENT_OTA_UPDATE.number === 'Base' ? 'Base' : `#${CURRENT_OTA_UPDATE.number}`}).`);
+            } else if (result === 'unavailable') {
+              Alert.alert('Atualização online', 'A atualização EAS não está disponível neste ambiente.');
+            }
+          } catch (cause) {
+            Alert.alert('Atualização online', `Não foi possível buscar a atualização. ${getErrorMessage(cause)}`);
+          } finally {
+            setCheckingOnlineUpdate(false);
+          }
+        }}
         onOpenFeedback={() => setFeedbackOpen(true)}
         onCheckUpdate={async () => {
           if (IS_EXPO_GO) {

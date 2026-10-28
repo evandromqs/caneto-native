@@ -1,6 +1,7 @@
 import { Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { CANETO_API } from '../../core/api';
 
 export const GITHUB_REPO = 'evandromqs/caneto-native';
@@ -10,6 +11,31 @@ const UPDATE_REQUEST_TIMEOUT_MS = 8_000;
 export const IS_EXPO_GO = Constants.appOwnership === 'expo';
 export const CURRENT_APP_VERSION = (IS_EXPO_GO ? Constants.expoConfig?.version : Application.nativeApplicationVersion)
   ?? Constants.expoConfig?.version ?? '0.0.0';
+const configuredOtaNumber = process.env.EXPO_PUBLIC_OTA_UPDATE_NUMBER?.trim();
+const configuredOtaMessage = process.env.EXPO_PUBLIC_OTA_UPDATE_MESSAGE?.trim();
+
+export const CURRENT_OTA_UPDATE = {
+  number: configuredOtaNumber || (Updates.isEmbeddedLaunch ? 'Base' : 'Sem número'),
+  message: configuredOtaMessage || (Updates.isEmbeddedLaunch ? 'Versão incluída no APK' : 'Atualização online instalada'),
+  shortId: Updates.updateId?.slice(0, 8) ?? null,
+  channel: Updates.channel || 'production',
+  runtimeVersion: Updates.runtimeVersion || CURRENT_APP_VERSION,
+  isEmbedded: Updates.isEmbeddedLaunch,
+};
+
+export type OnlineUpdateResult = 'current' | 'unavailable' | 'reloading';
+
+/** Verifica, baixa e aplica imediatamente a atualização EAS mais recente. */
+export async function checkAndApplyOnlineUpdate(): Promise<OnlineUpdateResult> {
+  if (IS_EXPO_GO || !Updates.isEnabled) return 'unavailable';
+
+  const result = await Updates.checkForUpdateAsync();
+  if (!result.isAvailable) return 'current';
+
+  await Updates.fetchUpdateAsync();
+  await Updates.reloadAsync();
+  return 'reloading';
+}
 
 export interface AppReleaseInfo {
   hasUpdate: boolean;

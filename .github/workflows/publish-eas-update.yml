@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_OTA_UPDATE_NUMBER: ${{ github.run_number }}
+      EXPO_PUBLIC_OTA_UPDATE_MESSAGE: ${{ inputs.message }}
       UPDATE_CHANNEL: ${{ inputs.channel }}
       UPDATE_ENVIRONMENT: ${{ inputs.channel == 'production' && 'production' || 'preview' }}
       UPDATE_MESSAGE: ${{ inputs.message }}

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { createThemedStyles, theme } from '../../ui/theme';
 
 export type SettingsPreferences = {
@@ -15,6 +15,7 @@ export type SettingsPreferences = {
 export type PlanInfo = { tier: 'free' | 'pro'; scansUsed: number; scansLimit: number };
 export type PurchaseSummary = { totalSpent: number; totalPurchases: number; totalItems: number };
 export type SettingsProfile = { displayName?: string | null; username?: string | null; avatarUrl?: string | null; email?: string | null };
+export type OnlineUpdateInfo = { number: string; message: string; shortId: string | null; channel: string; runtimeVersion: string; isEmbedded: boolean };
 export type SettingsScreenProps = {
   profile: SettingsProfile;
   plan?: PlanInfo;
@@ -28,6 +29,9 @@ export type SettingsScreenProps = {
   onChangePreferences?: (next: SettingsPreferences) => void;
   onOpenChangelog?: () => void;
   onOpenOnboarding?: () => void;
+  onlineUpdate?: OnlineUpdateInfo;
+  checkingOnlineUpdate?: boolean;
+  onCheckOnlineUpdate?: () => void;
   onCheckUpdate?: () => void;
   onOpenFeedback?: () => void;
   onSignOut?: () => void;
@@ -120,14 +124,25 @@ export function SettingsScreen(props: SettingsScreenProps) {
 
     <Card>
       <SectionTitle>Atualização do Aplicativo</SectionTitle>
+      {props.onlineUpdate && <View style={styles.aboutRow}>
+        <View style={styles.flex}>
+          <Text style={styles.toggleTitle}>Atualização online {props.onlineUpdate.number === 'Base' ? 'Base' : `#${props.onlineUpdate.number}`}</Text>
+          <Text style={styles.toggleDescription}>{props.onlineUpdate.message}</Text>
+          <Text style={styles.updateMeta}>Canal {props.onlineUpdate.channel} · Runtime {props.onlineUpdate.runtimeVersion}{props.onlineUpdate.shortId ? ` · ID ${props.onlineUpdate.shortId}` : ''}</Text>
+        </View>
+        {props.onCheckOnlineUpdate && <Pressable style={[styles.proButton, props.checkingOnlineUpdate && styles.disabled]} onPress={props.onCheckOnlineUpdate} disabled={props.checkingOnlineUpdate} accessibilityRole="button">
+          {props.checkingOnlineUpdate ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="refresh-outline" size={15} color="#FFFFFF" />}
+          <Text style={styles.proButtonText}>{props.checkingOnlineUpdate ? 'Buscando' : 'Atualizar'}</Text>
+        </Pressable>}
+      </View>}
       <View style={styles.aboutRow}>
         <View style={styles.flex}>
-          <Text style={styles.toggleTitle}>Caneto™ v{props.version || '1.0.3'}</Text>
-          <Text style={styles.toggleDescription}>Verifique e instale novas versões direto do GitHub</Text>
+          <Text style={styles.toggleTitle}>Versão do APK v{props.version || '1.0.3'}</Text>
+          <Text style={styles.toggleDescription}>Bibliotecas, permissões e recursos nativos</Text>
         </View>
         {props.onCheckUpdate && <Pressable style={styles.proButton} onPress={props.onCheckUpdate} accessibilityRole="button">
           <Ionicons name="cloud-download-outline" size={15} color="#FFFFFF" />
-          <Text style={styles.proButtonText}>Verificar</Text>
+          <Text style={styles.proButtonText}>Ver APK</Text>
         </Pressable>}
       </View>
     </Card>
@@ -152,6 +167,7 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   choiceRow: { flexDirection: 'row', gap: 8 }, choice: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 4 }, choiceSelected: { borderColor: theme.blue, backgroundColor: theme.blueSoft }, choiceText: { color: theme.muted, fontFamily: theme.font.semibold, fontSize: 12 }, choiceTextSelected: { color: theme.blue, fontFamily: theme.font.bold }, disabled: { opacity: 0.75 },
   toggleGroup: { borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, borderRadius: 12, overflow: 'hidden' }, toggleRow: { minHeight: 69, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: theme.border, padding: 11 }, toggleIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: theme.border, alignItems: 'center', justifyContent: 'center' }, toggleIconActive: { backgroundColor: theme.blueSoft }, toggleInfo: { flex: 1 }, toggleTitle: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 13 }, toggleDescription: { color: theme.subtle, fontFamily: theme.font.regular, fontSize: 11 },
   aboutRow: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 11, backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border }, signOut: { minHeight: 49, borderRadius: 15, borderWidth: 1, borderColor: theme.danger, backgroundColor: theme.dangerSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, signOutText: { color: theme.danger, fontFamily: theme.font.bold, fontSize: 13 }, footerCard: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 15, paddingHorizontal: 13, paddingVertical: 8 }, footerImage: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: theme.borderStrong }, footer: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 12 },
+  updateMeta: { color: theme.subtle, fontFamily: theme.font.semibold, fontSize: 10, marginTop: 3 },
   feedbackButton: { minHeight: 43, borderRadius: 12, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   feedbackButtonText: { color: theme.warning, fontFamily: theme.font.bold, fontSize: 13 },
 }));
