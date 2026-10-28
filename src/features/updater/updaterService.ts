@@ -1,8 +1,12 @@
 import { Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import { CANETO_API } from '../../core/api';
 
 export const GITHUB_REPO = 'evandromqs/caneto-native';
+const UPDATE_ENDPOINT = `${CANETO_API}/api/app-version`;
+const GITHUB_RELEASE_ENDPOINT = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
+const UPDATE_REQUEST_TIMEOUT_MS = 8_000;
 export const IS_EXPO_GO = Constants.appOwnership === 'expo';
 export const CURRENT_APP_VERSION = (IS_EXPO_GO ? Constants.expoConfig?.version : Application.nativeApplicationVersion)
   ?? Constants.expoConfig?.version ?? '0.0.0';
@@ -23,6 +27,31 @@ interface ReleaseAsset {
   browser_download_url: string;
   state: string;
   size: number;
+}
+
+async function fetchWithTimeout(url: string, headers: Record<string, string>): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPDATE_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchLatestRelease(): Promise<Response> {
+  try {
+    const response = await fetchWithTimeout(UPDATE_ENDPOINT, { Accept: 'application/json' });
+    if (response.ok) return response;
+  } catch (error) {
+    console.warn('[Updater] Endpoint cacheado indisponível; usando fallback do GitHub.', error);
+  }
+
+  return fetchWithTimeout(GITHUB_RELEASE_ENDPOINT, {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'CanetoNativeApp',
+    'X-GitHub-Api-Version': '2022-11-28',
+  });
 }
 
 function versionParts(version: string): number[] | null {
@@ -57,15 +86,7 @@ function validApkUrl(value: unknown): value is string {
  */
 export async function checkAppUpdate(): Promise<AppReleaseInfo | null> {
     if (Platform.OS !== 'android' || IS_EXPO_GO) return null;
-    const response = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-      {
-        headers: {
-          Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'CanetoNativeApp',
-        },
-      }
-    );
+    const response = await fetchLatestRelease();
 
     if (!response.ok) {
       if (response.status === 404) return null;

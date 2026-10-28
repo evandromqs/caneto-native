@@ -2,10 +2,13 @@ name: Build & Release Android APK
 
 on:
   push:
-    branches:
-      - main
-      - master
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
+
+concurrency:
+  group: android-production-release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -28,21 +31,41 @@ jobs:
       - name: Calculate Version & APK Naming
         id: versioning
         run: |
-          MAJOR_MINOR=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
-          RUN_NUM="${{ github.run_number }}"
+          VERSION=$(node -p "require('./app.json').expo.version")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          VERSION_CODE=$(node -p "require('./app.json').expo.android.versionCode")
           SHORT_SHA=$(git rev-parse --short HEAD)
 
-          RELEASE_TAG="v${MAJOR_MINOR}.${RUN_NUM}"
+          test "$VERSION" = "$PACKAGE_VERSION" || { echo 'app.json e package.json possuem versões diferentes.'; exit 1; }
+          printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo 'A versão deve seguir MAJOR.MINOR.PATCH.'; exit 1; }
+          test "$VERSION_CODE" -gt 0 || { echo 'versionCode precisa ser um inteiro positivo.'; exit 1; }
+
+          RELEASE_TAG="v${VERSION}"
+          if [ "${{ github.ref_type }}" = "tag" ] && [ "${{ github.ref_name }}" != "$RELEASE_TAG" ]; then
+            echo "A tag ${{ github.ref_name }} não corresponde à versão $RELEASE_TAG do projeto."
+            exit 1
+          fi
           APK_NAME="caneto-${RELEASE_TAG}.apk"
 
-          node -e "const fs=require('fs'); const app=require('./app.json'); const pkg=require('./package.json'); const lock=require('./package-lock.json'); const code=Number(process.env.GITHUB_RUN_NUMBER); if (!Number.isSafeInteger(code) || code <= app.expo.android.versionCode) throw Error('Build number must exceed committed Android versionCode'); const version=process.argv[1]; app.expo.version=version; app.expo.android.versionCode=code; pkg.version=version; lock.version=version; lock.packages[''].version=version; for (const [path,obj] of [['app.json',app],['package.json',pkg],['package-lock.json',lock]]) fs.writeFileSync(path,JSON.stringify(obj,null,2)+'\n');" "${MAJOR_MINOR}.${RUN_NUM}"
           echo "tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
           echo "apk_name=${APK_NAME}" >> $GITHUB_OUTPUT
           echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "run_num=${RUN_NUM}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_code=${VERSION_CODE}" >> $GITHUB_OUTPUT
 
           echo "Generated Tag: $RELEASE_TAG"
           echo "Generated APK Name: $APK_NAME"
+
+      - name: Ensure the release version moves forward
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.versioning.outputs.tag }}"
+          LATEST=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
+          if [ -n "$LATEST" ] && [ "$LATEST" != "$TAG" ]; then
+            HIGHEST=$(printf '%s\n%s\n' "$LATEST" "$TAG" | sort -V | tail -n 1)
+            test "$HIGHEST" = "$TAG" || { echo "A versão $TAG não é posterior à release atual $LATEST."; exit 1; }
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -62,6 +85,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate application before release
+        run: |
+          npm run lint
+          npx tsc --noEmit
+          npm run test:sync
 
       - name: Create .env files for Metro Bundler
         run: |
@@ -128,6 +157,7 @@ jobs:
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           test -n "$APKSIGNER"
           "$APKSIGNER" verify "build-release/${{ steps.versioning.outputs.apk_name }}"
+          sha256sum "build-release/${{ steps.versioning.outputs.apk_name }}" > "build-release/${{ steps.versioning.outputs.apk_name }}.sha256"
           echo "Prepared asset at: build-release/${{ steps.versioning.outputs.apk_name }}"
           ls -la build-release
 
@@ -135,7 +165,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.versioning.outputs.apk_name }}
-          path: build-release/${{ steps.versioning.outputs.apk_name }}
+          path: |
+            build-release/${{ steps.versioning.outputs.apk_name }}
+            build-release/${{ steps.versioning.outputs.apk_name }}.sha256
           retention-days: 30
 
       - name: Publish GitHub Release
@@ -144,6 +176,7 @@ jobs:
         run: |
           TAG="${{ steps.versioning.outputs.tag }}"
           APK_PATH="build-release/${{ steps.versioning.outputs.apk_name }}"
+          CHECKSUM_PATH="${APK_PATH}.sha256"
           COMMIT_MSG=$(git log -1 --pretty=%B)
 
           RELEASE_NOTES="### 📱 Caneto Native $TAG
@@ -151,7 +184,8 @@ jobs:
           - **Arquivo APK:** \`${{ steps.versioning.outputs.apk_name }}\`
           - **Pacote:** \`com.evandromqs.caneto\`
           - **Commit:** \`${{ steps.versioning.outputs.short_sha }}\`
-          - **Build:** \`#${{ steps.versioning.outputs.run_num }}\`
+          - **Version code:** \`${{ steps.versioning.outputs.version_code }}\`
+          - **Workflow:** \`#${{ github.run_number }}\`
 
           #### O que mudou
           $COMMIT_MSG
@@ -163,11 +197,11 @@ jobs:
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists. Uploading new asset..."
-            gh release upload "$TAG" "$APK_PATH" --clobber
+            gh release upload "$TAG" "$APK_PATH" "$CHECKSUM_PATH" --clobber
           else
             echo "Creating new GitHub Release $TAG..."
-            gh release create "$TAG" "$APK_PATH" \
-              --title "Caneto $TAG (Build #${{ steps.versioning.outputs.run_num }})" \
+            gh release create "$TAG" "$APK_PATH" "$CHECKSUM_PATH" \
+              --title "Caneto $TAG (versionCode ${{ steps.versioning.outputs.version_code }})" \
               --notes "$RELEASE_NOTES" \
               --latest
           fi
