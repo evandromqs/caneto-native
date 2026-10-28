@@ -338,17 +338,17 @@ export default function App() {
     }
   }
   const systemScheme = useColorScheme();
-  const preferences: SettingsPreferences | undefined = profile ? {
-    theme: profile.preferences.theme ?? 'light',
-    fontSize: profile.preferences.fontSize ?? 'normal',
-    checkboxStyle: profile.preferences.checkboxStyle ?? 'circle',
-    highContrast: profile.preferences.highContrast ?? false,
-    keepScreenAwake: profile.preferences.keepScreenAwake ?? false,
-    vibration: profile.preferences.vibration ?? true,
-    soundEffects: profile.preferences.soundEffects ?? true,
-  } : undefined;
+  const preferences: SettingsPreferences = {
+    theme: profile?.preferences.theme ?? 'light',
+    fontSize: profile?.preferences.fontSize ?? 'normal',
+    checkboxStyle: profile?.preferences.checkboxStyle ?? 'circle',
+    highContrast: profile?.preferences.highContrast ?? false,
+    keepScreenAwake: profile?.preferences.keepScreenAwake ?? false,
+    vibration: profile?.preferences.vibration ?? true,
+    soundEffects: profile?.preferences.soundEffects ?? true,
+  };
 
-  const isDark = preferences?.theme === 'dark' || (preferences?.theme === 'system' && systemScheme === 'dark');
+  const isDark = preferences.theme === 'dark' || (preferences.theme === 'system' && systemScheme === 'dark');
   setAppTheme(isDark);
 
   if (starting || (!fontsLoaded && !fontError)) return <SafeAreaView style={[styles.center, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]}><ActivityIndicator size="large" color={green} /></SafeAreaView>;
@@ -471,7 +471,17 @@ export default function App() {
             Alert.alert('Atualização', 'Não foi possível verificar a versão no GitHub. Verifique a conexão e tente novamente.');
           }
         }}
-        onChangePreferences={next => { setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : current); void updatePreferences(next, session.user.id).catch(errorMessage); }}
+        onChangePreferences={next => {
+          setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : {
+            id: session.user.id,
+            email: session.user.email ?? undefined,
+            visibility: 'private',
+            isPhotoPublic: true,
+            preferences: next,
+            updatedAt: Date.now(),
+          });
+          void updatePreferences(next, session.user.id).catch(errorMessage);
+        }}
         onOpenProfile={() => setModal('profile')}
         onOpenHistory={() => setModal('history')}
         onSignOut={() => { void supabase.auth.signOut(); }}
