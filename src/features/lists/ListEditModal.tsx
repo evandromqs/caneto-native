@@ -58,64 +58,84 @@ function ListEditDialog({ list, trashCount, onOpenTrash, onClose, onSave, onShar
     { text: 'Excluir', style: 'destructive', onPress: () => void run(() => onDelete(list), true) },
   ]);
 
-  return <ModalSheet visible title="Editar Lista" subtitle="Nome, estabelecimento e ações" onClose={onClose}>
+  const footer = <View style={styles.footerActions}>
+    <AppButton label={canEdit ? 'Cancelar' : 'Fechar'} variant="ghost" onPress={onClose} disabled={busy} style={styles.footerButton} />
+    {canEdit && <AppButton label="Salvar Alterações" icon={<Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />} loading={busy} disabled={!name.trim()} onPress={save} style={styles.saveButton} />}
+  </View>;
+
+  return <ModalSheet
+    visible
+    title="Editar Lista"
+    subtitle="Nome, estabelecimento e modo de conexão"
+    headerIcon={<Ionicons name="create-outline" size={21} color={theme.blue} />}
+    onClose={onClose}
+    footer={footer}
+  >
     {canEdit && <View style={styles.form}>
-      <AppField label="Nome da lista" value={name} onChangeText={setName} placeholder="Ex: Compras do Mês" maxLength={80} autoFocus />
-      <AppField label="Supermercado / Estabelecimento (Opcional)" value={store} onChangeText={setStore} placeholder="Ex: Carrefour" maxLength={120} />
-      <AppButton label="Salvar alterações" loading={busy} disabled={!name.trim()} onPress={save} style={styles.saveButton} />
+      <AppField label="Nome da Lista" value={name} onChangeText={setName} placeholder="Ex: Compras do Mês" maxLength={80} autoFocus inputStyle={styles.strongInput} />
+      <View style={styles.storeLabel}><Ionicons name="storefront-outline" size={15} color={theme.blue} /><AppText style={styles.inlineLabel}>Supermercado / Estabelecimento (Opcional)</AppText></View>
+      <AppField label="" accessibilityLabel="Supermercado ou estabelecimento" value={store} onChangeText={setStore} placeholder="Ex: Pão de Açúcar, Carrefour, Atacadão..." maxLength={120} inputStyle={styles.strongInput} />
     </View>}
 
-    <View style={styles.actionList}>
-      {own && (
-        <Pressable style={styles.actionRow} onPress={() => { onClose(); void onShare(list); }} disabled={busy} accessibilityRole="button" accessibilityLabel="Compartilhar lista">
-          <Ionicons name="share-social-outline" size={20} color={theme.blue} />
-          <AppText style={styles.actionRowText}>Compartilhar lista</AppText>
-          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
-        </Pressable>
-      )}
-      <Pressable style={styles.actionRow} onPress={() => void run(() => onDuplicate(list), true)} disabled={busy} accessibilityRole="button" accessibilityLabel="Duplicar lista">
-        <Ionicons name="copy-outline" size={20} color={theme.blue} />
-        <AppText style={styles.actionRowText}>Duplicar lista</AppText>
-        <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
-      </Pressable>
-      {onOpenTrash && !list.isCompleted && list.permission !== 'viewer' && (
-        <Pressable style={styles.actionRow} onPress={() => { onClose(); onOpenTrash(list); }} disabled={busy} accessibilityRole="button" accessibilityLabel="Abrir lixeira">
-          <Ionicons name="trash-outline" size={20} color={theme.blue} />
-          <AppText style={styles.actionRowText}>Lixeira{trashCount && trashCount > 0 ? ` (${trashCount})` : ''}</AppText>
-          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
-        </Pressable>
-      )}
-      {own && onComplete && (
-        <Pressable style={styles.actionRow} onPress={() => { if (list.isCompleted) void run(() => onComplete(list), true); else { onClose(); void onComplete(list); } }} disabled={busy} accessibilityRole="button" accessibilityLabel={list.isCompleted ? 'Reabrir lista' : 'Finalizar compra'}>
-          <Ionicons name={list.isCompleted ? 'refresh-outline' : 'checkmark-circle-outline'} size={20} color={theme.blue} />
-          <AppText style={styles.actionRowText}>{list.isCompleted ? 'Reabrir lista' : 'Finalizar compra'}</AppText>
-          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
-        </Pressable>
-      )}
-      {own && (
-        <Pressable style={styles.actionRow} onPress={confirmDelete} disabled={busy} accessibilityRole="button" accessibilityLabel="Excluir lista">
-          <Ionicons name="trash-outline" size={20} color={theme.danger} />
-          <AppText style={[styles.actionRowText, styles.dangerText]}>Excluir lista</AppText>
-          <Ionicons name="chevron-forward" size={17} color={theme.subtle} />
-        </Pressable>
-      )}
+    <View style={styles.originSection}>
+      <View style={styles.sectionLabel}><Ionicons name="link-outline" size={15} color={theme.blue} /><AppText style={styles.sectionLabelText}>Tipo de Lista / Origem</AppText></View>
+      <View style={styles.originOptions}>
+        <View style={[styles.originOption, own && styles.originOptionSelected]}><Ionicons name="person-outline" size={16} color={own ? theme.blue : theme.muted} /><AppText style={[styles.originText, own && styles.originTextSelected]}>Minha Lista</AppText></View>
+        <View style={[styles.originOption, !own && styles.originOptionConnected]}><Ionicons name="link-outline" size={16} color={!own ? '#FFFFFF' : theme.muted} /><AppText style={[styles.originText, !own && styles.originTextConnected]}>Conectada</AppText></View>
+      </View>
+      {!own && <View style={styles.connectionHint}><Ionicons name="people-outline" size={16} color={theme.blue} /><AppText style={styles.connectionHintText}>Acesso compartilhado · {list.permission === 'editor' ? 'você pode editar' : 'somente leitura'}</AppText></View>}
+    </View>
+
+    <View style={styles.secondarySection}>
+      <AppText style={styles.secondaryTitle}>Ações da lista</AppText>
+      <View style={styles.quickActions}>
+        {own && <QuickAction icon="share-social-outline" label="Compartilhar" onPress={() => { onClose(); void onShare(list); }} disabled={busy} />}
+        <QuickAction icon="copy-outline" label="Duplicar" onPress={() => void run(() => onDuplicate(list), true)} disabled={busy} />
+        {onOpenTrash && !list.isCompleted && list.permission !== 'viewer' && <QuickAction icon="archive-outline" label={`Lixeira${trashCount && trashCount > 0 ? ` (${trashCount})` : ''}`} onPress={() => { onClose(); onOpenTrash(list); }} disabled={busy} />}
+        {own && onComplete && <QuickAction icon={list.isCompleted ? 'refresh-outline' : 'checkmark-circle-outline'} label={list.isCompleted ? 'Reabrir' : 'Finalizar'} onPress={() => { if (list.isCompleted) void run(() => onComplete(list), true); else { onClose(); void onComplete(list); } }} disabled={busy} />}
+        {own && <QuickAction icon="trash-outline" label="Excluir" onPress={confirmDelete} disabled={busy} danger />}
+      </View>
     </View>
 
     {!!error && <AppText accessibilityRole="alert" style={styles.errorText}>{error}</AppText>}
-    <View style={styles.footer}>
-      <AppButton label="Fechar" variant="ghost" onPress={onClose} disabled={busy} style={styles.cancelButton} />
-    </View>
   </ModalSheet>;
 }
 
+function QuickAction({ icon, label, onPress, disabled, danger = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; disabled?: boolean; danger?: boolean }) {
+  return <Pressable style={({ pressed }) => [styles.quickAction, danger && styles.quickActionDanger, pressed && styles.pressed, disabled && styles.disabled]} onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label}>
+    <Ionicons name={icon} size={16} color={danger ? theme.danger : theme.blue} />
+    <AppText style={[styles.quickActionText, danger && styles.dangerText]}>{label}</AppText>
+  </Pressable>;
+}
+
 const styles = createThemedStyles(theme => StyleSheet.create({
-  form: { marginBottom: 12 },
-  saveButton: { width: '100%', minHeight: 48, marginTop: 4 },
-  actionList: { borderTopWidth: 1, borderColor: theme.border, marginTop: 14, paddingTop: 6 },
-  actionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: 1, borderColor: theme.border },
-  actionRowText: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15 },
+  form: { marginBottom: 4 },
+  strongInput: { fontFamily: theme.font.semibold },
+  storeLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: -8 },
+  inlineLabel: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15 },
+  originSection: { marginTop: 3, gap: 9 },
+  sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sectionLabelText: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 15 },
+  originOptions: { flexDirection: 'row', gap: 6, padding: 5, borderRadius: 16, backgroundColor: theme.surfaceMuted, borderWidth: 1, borderColor: theme.border },
+  originOption: { flex: 1, minHeight: 42, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  originOptionSelected: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border },
+  originOptionConnected: { backgroundColor: theme.blue },
+  originText: { color: theme.muted, fontFamily: theme.font.bold, fontSize: 13 },
+  originTextSelected: { color: theme.blue },
+  originTextConnected: { color: '#FFFFFF' },
+  connectionHint: { flexDirection: 'row', alignItems: 'center', gap: 7, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.blueSoft },
+  connectionHintText: { flex: 1, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 12, lineHeight: 18 },
+  secondarySection: { borderTopWidth: 1, borderTopColor: theme.border, marginTop: 18, paddingTop: 14 },
+  secondaryTitle: { color: theme.muted, fontFamily: theme.font.bold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 9 },
+  quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  quickAction: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 11, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted },
+  quickActionDanger: { backgroundColor: theme.dangerSoft, borderColor: theme.dangerSoft },
+  quickActionText: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 13 },
   dangerText: { color: theme.danger },
   errorText: { color: theme.danger, marginTop: 12, fontFamily: theme.font.semibold, fontSize: 13 },
-  footer: { marginTop: 14, alignItems: 'center' },
-  cancelButton: { width: '100%', minHeight: 44 },
+  footerActions: { flexDirection: 'row', gap: 10 },
+  footerButton: { flex: 1, minHeight: 46 },
+  saveButton: { flex: 1.35, minHeight: 46 },
+  pressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
+  disabled: { opacity: 0.5 },
 }));

@@ -42,7 +42,7 @@ export async function duplicateList(list: List, userId: string) {
   return payload.id;
 }
 
-export async function saveItemChanges(item: Item, changes: { name: string; quantity: number; unit: string; price: number | null; category_id?: string }) {
+export async function saveItemChanges(item: Item, changes: { name: string; quantity: number; unit: string; price: number | null; category_id?: string; ean?: string | null; brand?: string | null }) {
   const now = Date.now();
   const category_id = changes.category_id ?? suggestCategory(changes.name);
   const next = { ...changes, category_id, updated_at: now };

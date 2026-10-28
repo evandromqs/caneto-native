@@ -535,7 +535,9 @@ export default function App() {
             preferences: next,
             updatedAt: Date.now(),
           });
-          void updatePreferences(next, session.user.id).catch(errorMessage);
+          void updatePreferences(next, session.user.id).catch(error => {
+            console.warn('Não foi possível sincronizar as preferências do perfil:', getErrorMessage(error));
+          });
         }}
         onOpenProfile={() => setModal('profile')}
         onOpenHistory={() => setModal('history')}

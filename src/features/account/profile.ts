@@ -72,8 +72,7 @@ export async function saveAccountProfile(changes: AccountProfileChanges, expecte
     throw new Error('A tag deve ter entre 3 e 30 caracteres: letras, números, ponto ou sublinhado.');
   }
   const preferences = { ...previous?.preferences, ...changes.preferences };
-  const { error } = await supabase.from('profiles').upsert({
-    id: user.id,
+  const profilePayload = {
     email: previous?.email ?? user.email ?? null,
     username,
     display_name: changes.displayName === undefined ? previous?.displayName ?? null : changes.displayName?.trim() || null,
@@ -82,7 +81,10 @@ export async function saveAccountProfile(changes: AccountProfileChanges, expecte
     is_photo_public: changes.isPhotoPublic ?? previous?.isPhotoPublic ?? true,
     preferences,
     updated_at: Date.now(),
-  }, { onConflict: 'id' });
+  };
+  const { error } = previous
+    ? await supabase.from('profiles').update(profilePayload).eq('id', user.id)
+    : await supabase.from('profiles').insert({ id: user.id, ...profilePayload });
   if (error) throw error;
   const saved = await loadAccountProfile(user.id);
   if (!saved) throw new Error('Perfil salvo, mas não foi possível carregá-lo.');
@@ -109,5 +111,22 @@ export async function completeOnboarding(input: {
 }
 
 export async function updatePreferences(preferences: Preferences, expectedUserId?: string): Promise<AccountProfile> {
-  return saveAccountProfile({ preferences }, expectedUserId);
+  const user = await requireUser(expectedUserId);
+  const previous = await loadAccountProfile(user.id);
+  const mergedPreferences = { ...previous?.preferences, ...preferences };
+  const now = Date.now();
+  const { error } = previous
+    ? await supabase.from('profiles').update({ preferences: mergedPreferences, updated_at: now }).eq('id', user.id)
+    : await supabase.from('profiles').insert({
+      id: user.id,
+      email: user.email ?? null,
+      visibility: 'private',
+      is_photo_public: true,
+      preferences: mergedPreferences,
+      updated_at: now,
+    });
+  if (error) throw error;
+  const saved = await loadAccountProfile(user.id);
+  if (!saved) throw new Error('Preferências salvas, mas não foi possível carregar o perfil.');
+  return saved;
 }

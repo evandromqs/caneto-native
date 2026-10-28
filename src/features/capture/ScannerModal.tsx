@@ -7,7 +7,7 @@ import { CANETO_API } from '../../core/api';
 import { parseNfceQrCode } from '../../core/scanner/nfce';
 import { assertCanScan, consumeAiScan, readScanQuota, type ScanQuota } from '../../core/scanner/quota';
 import { canetoData } from '../../core/data/supabaseAdapter';
-import { createThemedStyles, theme } from '../../ui/theme';
+import { createThemedStyles } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 
 export type CapturedItem = {
@@ -32,10 +32,10 @@ export type CaptureResult = {
 
 type Mode = 'ean' | 'product' | 'invoice';
 
-const modes: { id: Mode; label: string }[] = [
-  { id: 'ean', label: 'Código' },
-  { id: 'product', label: 'Produto' },
-  { id: 'invoice', label: 'Nota' },
+const modes: { id: Mode; label: string; icon: keyof typeof Ionicons.glyphMap; hint: string }[] = [
+  { id: 'ean', label: 'Código', icon: 'barcode-outline', hint: 'Aponte para o código de barras do produto' },
+  { id: 'product', label: 'Produto', icon: 'cube-outline', hint: 'Centralize o produto e toque no botão de captura' },
+  { id: 'invoice', label: 'Nota', icon: 'receipt-outline', hint: 'Aponte para o QR Code da nota fiscal' },
 ];
 
 export function ScannerModal({ visible, userId, purpose = 'items', onClose, onConfirm }: {
@@ -189,65 +189,114 @@ function ScannerDialog({ userId, purpose, onClose, onConfirm }: {
     } finally { setBusy(false); }
   };
 
+  const activeMode = modes.find(entry => entry.id === mode) ?? modes[0];
+
   return <Modal visible animationType="slide" onRequestClose={onClose} statusBarTranslucent><SafeAreaView style={styles.fullscreen} edges={['top', 'bottom', 'left', 'right']}>
-    <View style={styles.header}><Pressable style={styles.close} onPress={onClose} accessibilityLabel="Fechar câmera"><Ionicons name="close" size={24} color="white" /></Pressable><View style={styles.headerText}><Text style={styles.headerTitle}>{purpose === 'receipt' ? 'Nota fiscal' : 'Escanear produto'}</Text><Text style={styles.headerSubtitle}>{quota ? `IA: ${quota.scansRemaining} de ${quota.scansLimit} leituras neste mês` : 'Código EAN ou foto com IA'}</Text></View></View>
-    <View style={styles.modes}>{modes.map(entry => <Pressable key={entry.id} style={[styles.mode, mode === entry.id && styles.modeOn]} onPress={() => { setMode(entry.id); setDraft(null); lock.current = false; setError(''); }}><Text style={[styles.modeText, mode === entry.id && styles.modeTextOn]}>{entry.label}</Text></Pressable>)}</View>
-    {!permission?.granted ? <Pressable style={styles.primary} onPress={() => void requestPermission()}><Text style={styles.primaryText}>Permitir câmera</Text></Pressable> : !draft && <CameraView
-      ref={camera}
-      style={styles.camera}
-      facing="back"
-      barcodeScannerSettings={{ barcodeTypes: mode === 'invoice' ? ['qr'] : ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'qr'] }}
-      onBarcodeScanned={mode === 'product' ? undefined : event => { void onBarcode(event); }}
-    />}
-    {mode === 'product' && !draft && <Pressable style={styles.primary} disabled={busy} onPress={() => void recognizePhoto()}><Ionicons name="camera" size={18} color="white" /><Text style={styles.primaryText}>{busy ? 'Lendo...' : 'Fotografar produto ou etiqueta'}</Text></Pressable>}
-    {busy && <ActivityIndicator color={theme.blue} />}
-    {!!error && <Text style={styles.error}>{error}</Text>}
-    {!!draft && <ScrollView contentContainerStyle={styles.draft} keyboardShouldPersistTaps="handled">
+    <View style={styles.header}>
+      <Pressable style={styles.close} onPress={onClose} accessibilityLabel="Fechar câmera"><Ionicons name="close" size={22} color="white" /></Pressable>
+      <View style={styles.scannerMark}><Ionicons name="scan-outline" size={19} color="#8FABFF" /></View>
+      <View style={styles.headerText}><Text style={styles.headerTitle}>{purpose === 'receipt' ? 'Capturar nota fiscal' : 'Capturar produto'}</Text><Text style={styles.headerSubtitle}>Código, foto inteligente ou nota fiscal</Text></View>
+      {!!quota && <View style={styles.quota}><Ionicons name="sparkles" size={13} color="#A7F3D0" /><Text style={styles.quotaText}>{quota.scansRemaining}/{quota.scansLimit}</Text></View>}
+    </View>
+    <View style={styles.modes}>{modes.map(entry => { const selected = mode === entry.id; return <Pressable key={entry.id} style={[styles.mode, selected && styles.modeOn]} onPress={() => { setMode(entry.id); setDraft(null); lock.current = false; setError(''); }} accessibilityRole="tab" accessibilityState={{ selected }}><Ionicons name={entry.icon} size={17} color={selected ? '#FFFFFF' : '#94A3B8'} /><Text style={[styles.modeText, selected && styles.modeTextOn]}>{entry.label}</Text></Pressable>; })}</View>
+
+    {!draft ? <View style={styles.captureArea}>
+      {!permission?.granted ? <View style={styles.permissionCard}><View style={styles.permissionIcon}><Ionicons name="camera-outline" size={30} color="#8FABFF" /></View><Text style={styles.permissionTitle}>A câmera precisa de permissão</Text><Text style={styles.permissionText}>Use a câmera para ler códigos e reconhecer produtos.</Text><Pressable style={styles.permissionButton} onPress={() => void requestPermission()}><Text style={styles.primaryText}>Permitir câmera</Text></Pressable></View> : <>
+        <View style={styles.cameraFrame}>
+          <CameraView ref={camera} style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: mode === 'invoice' ? ['qr'] : ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'qr'] }} onBarcodeScanned={mode === 'product' ? undefined : event => { void onBarcode(event); }} />
+          <View style={styles.cameraOverlay} pointerEvents="none"><View style={styles.scanTarget}><View style={styles.scanLine} /></View></View>
+          {busy && <View style={styles.cameraBusy}><ActivityIndicator color="#FFFFFF" size="large" /><Text style={styles.cameraBusyText}>{mode === 'product' ? 'Reconhecendo produto...' : 'Consultando código...'}</Text></View>}
+        </View>
+        <View style={styles.instruction}><Ionicons name={activeMode.icon} size={17} color="#8FABFF" /><Text style={styles.instructionText}>{activeMode.hint}</Text></View>
+        {mode === 'product' && <Pressable style={({ pressed }) => [styles.captureButton, pressed && styles.capturePressed, busy && styles.disabled]} disabled={busy} onPress={() => void recognizePhoto()} accessibilityLabel="Fotografar produto"><View style={styles.captureButtonInner}><Ionicons name="camera" size={28} color="#FFFFFF" /></View></Pressable>}
+      </>}
+      {!!error && <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color="#FCA5A5" /><Text style={styles.error}>{error}</Text></View>}
+    </View> : <ScrollView style={styles.draftScroll} contentContainerStyle={styles.draft} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <View style={styles.draftHeader}><View style={styles.draftIcon}><Ionicons name="scan-outline" size={20} color="#8FABFF" /></View><View style={styles.draftHeading}><Text style={styles.draftTitle}>{mode === 'invoice' ? 'Nota Fiscal Reconhecida' : 'Confirmar Item'}</Text><Text style={styles.draftSubtitle}>Revise os dados antes de salvar</Text></View><Pressable style={styles.draftClose} onPress={() => { setDraft(null); lock.current = false; }} accessibilityLabel="Fechar confirmação"><Ionicons name="close" size={20} color="#CBD5E1" /></Pressable></View>
       {draft.items.map((item, index) => purpose === 'items' ? <View key={`${item.ean || index}`} style={styles.productDraft}>
-        {!!item.photoUrl && <Image source={{ uri: item.photoUrl }} style={styles.productImage} />}
-        <Text style={styles.fieldLabel}>Produto identificado</Text>
-        <TextInput style={styles.field} value={item.name} onChangeText={name => updateDraftItem(index, { name })} placeholder="Nome do produto" accessibilityLabel="Nome do produto" />
-        <View style={styles.row}><TextInput style={[styles.field, styles.flexField]} value={item.brand || ''} onChangeText={brand => updateDraftItem(index, { brand })} placeholder="Marca" accessibilityLabel="Marca" /><TextInput style={[styles.field, styles.shortField]} value={String(item.quantity)} onChangeText={value => updateDraftItem(index, { quantity: Number(value.replace(',', '.')) || 1 })} keyboardType="decimal-pad" accessibilityLabel="Quantidade" /></View>
-        <View style={styles.row}><TextInput style={[styles.field, styles.flexField]} value={item.categoryId} onChangeText={categoryId => updateDraftItem(index, { categoryId })} placeholder="Categoria" accessibilityLabel="Categoria" /><TextInput style={[styles.field, styles.shortField]} value={item.unit} onChangeText={unit => updateDraftItem(index, { unit })} placeholder="Unidade" accessibilityLabel="Unidade" /></View>
-        <TextInput style={styles.field} value={item.price == null ? '' : String(item.price).replace('.', ',')} onChangeText={value => updateDraftItem(index, { price: value.trim() ? Number(value.replace(',', '.')) || null : null })} placeholder="Preço (opcional)" keyboardType="decimal-pad" accessibilityLabel="Preço" />
-        <TextInput style={styles.field} value={item.ean || ''} onChangeText={ean => updateDraftItem(index, { ean })} placeholder="Código EAN" keyboardType="number-pad" accessibilityLabel="Código EAN" />
-      </View> : <Text key={`${item.ean || index}`} style={styles.item}>{item.quantity} {item.unit} · {item.name}{item.price != null ? ` · ${item.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : ''}</Text>)}
-      {!!draft.storeName && <Text style={styles.item}>{draft.storeName}</Text>}
-      {draft.total != null && <Text style={styles.item}>Total da nota: {draft.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Text>}
-      {!draft.items.length && !draft.receiptQr && <Text style={styles.item}>Nada identificado.</Text>}
-      <View style={styles.row}>
-        <Pressable style={styles.secondary} onPress={() => { setDraft(null); lock.current = false; }}><Text style={styles.secondaryText}>Ler de novo</Text></Pressable>
-        <Pressable style={styles.primary} disabled={busy} onPress={() => void confirm()}><Text style={styles.primaryText}>{purpose === 'receipt' ? 'Usar comprovante' : 'Adicionar à lista'}</Text></Pressable>
-      </View>
+        <View style={styles.productVisual}>{item.photoUrl ? <Image source={{ uri: item.photoUrl }} style={styles.productImage} /> : <Ionicons name="cube-outline" size={36} color="#8FABFF" />}</View>
+        <Text style={styles.fieldLabel}>Nome do Produto</Text><TextInput style={styles.field} value={item.name} onChangeText={name => updateDraftItem(index, { name })} placeholder="Nome do produto" placeholderTextColor="#64748B" accessibilityLabel="Nome do produto" />
+        <View style={styles.row}><View style={styles.flexField}><Text style={styles.fieldLabel}>Quantidade</Text><TextInput style={styles.field} value={String(item.quantity)} onChangeText={value => updateDraftItem(index, { quantity: Number(value.replace(',', '.')) || 1 })} keyboardType="decimal-pad" accessibilityLabel="Quantidade" /></View><View style={styles.shortField}><Text style={styles.fieldLabel}>Unidade</Text><TextInput style={styles.field} value={item.unit} onChangeText={unit => updateDraftItem(index, { unit })} accessibilityLabel="Unidade" /></View></View>
+        <View style={styles.row}><View style={styles.flexField}><Text style={styles.fieldLabel}>Categoria</Text><TextInput style={styles.field} value={item.categoryId} onChangeText={categoryId => updateDraftItem(index, { categoryId })} placeholder="Categoria" placeholderTextColor="#64748B" accessibilityLabel="Categoria" /></View><View style={styles.flexField}><Text style={styles.fieldLabel}>Marca</Text><TextInput style={styles.field} value={item.brand || ''} onChangeText={brand => updateDraftItem(index, { brand })} placeholder="Marca" placeholderTextColor="#64748B" accessibilityLabel="Marca" /></View></View>
+        <Text style={styles.fieldLabel}>Preço</Text><View style={styles.priceField}><Text style={styles.pricePrefix}>R$</Text><TextInput style={styles.priceInput} value={item.price == null ? '' : String(item.price).replace('.', ',')} onChangeText={value => updateDraftItem(index, { price: value.trim() ? Number(value.replace(',', '.')) || null : null })} placeholder="0,00" placeholderTextColor="#64748B" keyboardType="decimal-pad" accessibilityLabel="Preço" /></View>
+        <Text style={styles.fieldLabel}>Código EAN</Text><TextInput style={styles.field} value={item.ean || ''} onChangeText={ean => updateDraftItem(index, { ean })} placeholder="Código de barras" placeholderTextColor="#64748B" keyboardType="number-pad" accessibilityLabel="Código EAN" />
+      </View> : <View key={`${item.ean || index}`} style={styles.invoiceItem}><View style={styles.invoiceIndex}><Text style={styles.invoiceIndexText}>{index + 1}</Text></View><View style={styles.invoiceCopy}><Text style={styles.invoiceName}>{item.name}</Text><Text style={styles.invoiceMeta}>{item.quantity} {item.unit}{item.price != null ? ` · ${item.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : ''}</Text></View></View>)}
+      {(draft.storeName || draft.total != null) && <View style={styles.invoiceSummary}>{!!draft.storeName && <Text style={styles.storeName}>{draft.storeName}</Text>}{draft.total != null && <Text style={styles.invoiceTotal}>Total da nota: {draft.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Text>}</View>}
+      {!draft.items.length && !draft.receiptQr && <Text style={styles.emptyDraft}>Nada identificado.</Text>}
+      {!!error && <View style={styles.errorBanner}><Ionicons name="alert-circle-outline" size={18} color="#FCA5A5" /><Text style={styles.error}>{error}</Text></View>}
+      <View style={styles.confirmActions}><Pressable style={styles.secondary} onPress={() => { setDraft(null); lock.current = false; }}><Ionicons name="refresh-outline" size={18} color="#CBD5E1" /><Text style={styles.secondaryText}>Ler de novo</Text></Pressable><Pressable style={[styles.primary, busy && styles.disabled]} disabled={busy} onPress={() => void confirm()}><Ionicons name="checkmark" size={19} color="#FFFFFF" /><Text style={styles.primaryText}>{purpose === 'receipt' ? 'Usar comprovante' : 'Adicionar à lista'}</Text></Pressable></View>
     </ScrollView>}
   </SafeAreaView></Modal>;
 }
 
 const styles = createThemedStyles(theme => StyleSheet.create({
-  fullscreen: { flex: 1, backgroundColor: '#020817', paddingHorizontal: 16, gap: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 10 },
-  close: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1E293B', alignItems: 'center', justifyContent: 'center' },
+  fullscreen: { flex: 1, backgroundColor: '#020817', paddingHorizontal: 16 },
+  header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 9, paddingTop: 6 },
+  close: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#172033', alignItems: 'center', justifyContent: 'center' },
+  scannerMark: { width: 38, height: 38, borderRadius: 13, backgroundColor: 'rgba(9,67,241,0.22)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(143,171,255,0.25)' },
   headerText: { flex: 1 },
-  headerTitle: { color: 'white', fontFamily: theme.font.bold, fontSize: 19 },
-  headerSubtitle: { color: '#CBD5E1', fontFamily: theme.font.regular, fontSize: 12 },
-  modes: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  mode: { flex: 1, minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: '#334155', backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 17 },
+  headerSubtitle: { color: '#94A3B8', fontFamily: theme.font.regular, fontSize: 11 },
+  quota: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, borderRadius: 10, backgroundColor: 'rgba(16,185,129,0.14)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)' },
+  quotaText: { color: '#A7F3D0', fontFamily: theme.font.bold, fontSize: 11 },
+  modes: { flexDirection: 'row', gap: 7, marginVertical: 10, padding: 4, borderRadius: 15, backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#1E293B' },
+  mode: { flex: 1, minHeight: 43, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5 },
   modeOn: { backgroundColor: theme.blue, borderColor: theme.blue },
-  modeText: { color: '#CBD5E1', fontFamily: theme.font.semibold },
-  modeTextOn: { color: 'white' },
-  camera: { flex: 1, minHeight: 320, borderRadius: 16, overflow: 'hidden', backgroundColor: '#0F172A' },
-  primary: { minHeight: 48, borderRadius: 12, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 12, marginTop: 10 },
-  primaryText: { color: 'white', fontFamily: theme.font.bold },
-  secondary: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: theme.blue, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  secondaryText: { color: theme.blue, fontFamily: theme.font.semibold },
-  error: { color: '#FCA5A5', fontFamily: theme.font.regular, marginTop: 8 },
-  draft: { gap: 8, marginTop: 12 },
-  item: { color: 'white', fontFamily: theme.font.regular },
-  row: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  productDraft: { gap: 7, padding: 10, borderWidth: 1, borderColor: '#334155', borderRadius: 13, backgroundColor: '#0F172A' },
-  productImage: { width: 58, height: 58, borderRadius: 10, alignSelf: 'center' },
-  fieldLabel: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 12 },
-  field: { minHeight: 42, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 10, paddingHorizontal: 10, color: theme.ink, fontFamily: theme.font.regular },
-  flexField: { flex: 1 },
-  shortField: { width: 75 },
+  modeText: { color: '#94A3B8', fontFamily: theme.font.semibold, fontSize: 12 },
+  modeTextOn: { color: '#FFFFFF' },
+  captureArea: { flex: 1, paddingBottom: 12 },
+  cameraFrame: { flex: 1, minHeight: 330, borderRadius: 22, overflow: 'hidden', backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#334155' },
+  camera: { flex: 1 },
+  cameraOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(2,8,23,0.12)' },
+  scanTarget: { width: '78%', height: '47%', borderRadius: 20, borderWidth: 2, borderColor: 'rgba(255,255,255,0.72)', justifyContent: 'center', overflow: 'hidden' },
+  scanLine: { height: 2, width: '88%', alignSelf: 'center', backgroundColor: '#386BF6', shadowColor: '#386BF6', shadowOpacity: 0.9, shadowRadius: 7, elevation: 4 },
+  cameraBusy: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(2,8,23,0.72)' },
+  cameraBusyText: { color: '#FFFFFF', fontFamily: theme.font.semibold, fontSize: 13 },
+  instruction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  instructionText: { color: '#CBD5E1', fontFamily: theme.font.semibold, fontSize: 12, textAlign: 'center' },
+  captureButton: { width: 68, height: 68, borderRadius: 34, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FFFFFF', backgroundColor: 'rgba(255,255,255,0.14)' },
+  captureButtonInner: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.blue },
+  capturePressed: { transform: [{ scale: 0.95 }], opacity: 0.85 },
+  permissionCard: { marginTop: 24, padding: 24, borderRadius: 22, alignItems: 'center', gap: 9, backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#334155' },
+  permissionIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(9,67,241,0.20)' },
+  permissionTitle: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 17, textAlign: 'center' },
+  permissionText: { color: '#94A3B8', fontFamily: theme.font.regular, fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  permissionButton: { minHeight: 46, marginTop: 8, borderRadius: 12, paddingHorizontal: 22, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center' },
+  primary: { flex: 1.2, minHeight: 48, borderRadius: 12, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, paddingHorizontal: 12 },
+  primaryText: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 13 },
+  secondary: { flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: '#475569', backgroundColor: '#172033', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, paddingHorizontal: 10 },
+  secondaryText: { color: '#CBD5E1', fontFamily: theme.font.semibold, fontSize: 13 },
+  errorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginTop: 9, padding: 10, borderRadius: 11, borderWidth: 1, borderColor: 'rgba(248,113,113,0.30)', backgroundColor: 'rgba(127,29,29,0.25)' },
+  error: { flex: 1, color: '#FCA5A5', fontFamily: theme.font.regular, fontSize: 12, lineHeight: 18 },
+  disabled: { opacity: 0.5 },
+  draftScroll: { flex: 1, marginBottom: 8 },
+  draft: { gap: 12, paddingVertical: 4, paddingBottom: 12 },
+  draftHeader: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#273449' },
+  draftIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(9,67,241,0.20)' },
+  draftHeading: { flex: 1 },
+  draftTitle: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 16 },
+  draftSubtitle: { color: '#94A3B8', fontFamily: theme.font.regular, fontSize: 11 },
+  draftClose: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#172033' },
+  row: { flexDirection: 'row', gap: 9 },
+  productDraft: { gap: 7, padding: 13, borderWidth: 1, borderColor: '#273449', borderRadius: 17, backgroundColor: '#0F172A' },
+  productVisual: { width: 92, height: 92, borderRadius: 18, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginBottom: 4, backgroundColor: '#172033', overflow: 'hidden' },
+  productImage: { width: '100%', height: '100%' },
+  fieldLabel: { color: '#CBD5E1', fontFamily: theme.font.semibold, fontSize: 12, marginTop: 3 },
+  field: { minHeight: 44, borderWidth: 1, borderColor: '#334155', backgroundColor: '#111B2E', borderRadius: 10, paddingHorizontal: 11, color: '#FFFFFF', fontFamily: theme.font.semibold, fontSize: 13 },
+  flexField: { flex: 1, minWidth: 0 },
+  shortField: { width: 92 },
+  priceField: { minHeight: 44, flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#334155', backgroundColor: '#111B2E', paddingHorizontal: 11 },
+  pricePrefix: { color: '#94A3B8', fontFamily: theme.font.bold, fontSize: 13 },
+  priceInput: { flex: 1, color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 16, textAlign: 'center', paddingVertical: 8 },
+  invoiceItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 11, borderRadius: 13, backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#273449' },
+  invoiceIndex: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(9,67,241,0.22)' },
+  invoiceIndexText: { color: '#8FABFF', fontFamily: theme.font.bold, fontSize: 12 },
+  invoiceCopy: { flex: 1 },
+  invoiceName: { color: '#FFFFFF', fontFamily: theme.font.semibold, fontSize: 13 },
+  invoiceMeta: { color: '#94A3B8', fontFamily: theme.font.regular, fontSize: 11 },
+  invoiceSummary: { padding: 14, borderRadius: 15, backgroundColor: 'rgba(9,67,241,0.18)', borderWidth: 1, borderColor: 'rgba(56,107,246,0.30)' },
+  storeName: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 14 },
+  invoiceTotal: { color: '#A7F3D0', fontFamily: theme.font.bold, fontSize: 15, marginTop: 3 },
+  emptyDraft: { color: '#CBD5E1', fontFamily: theme.font.regular, textAlign: 'center', padding: 20 },
+  confirmActions: { flexDirection: 'row', gap: 9, marginTop: 2 },
 }));
