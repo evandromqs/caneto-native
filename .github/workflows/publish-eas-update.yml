@@ -29,6 +29,7 @@ jobs:
     name: Validate and publish update
     runs-on: ubuntu-latest
     env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       UPDATE_CHANNEL: ${{ inputs.channel }}
       UPDATE_ENVIRONMENT: ${{ inputs.channel == 'production' && 'production' || 'preview' }}
       UPDATE_MESSAGE: ${{ inputs.message }}
@@ -49,12 +50,6 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Setup EAS CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Install dependencies
         run: npm ci
 
@@ -66,4 +61,4 @@ jobs:
           npm run test:sync
 
       - name: Publish EAS Update
-        run: eas update --channel "$UPDATE_CHANNEL" --message "$UPDATE_MESSAGE" --environment "$UPDATE_ENVIRONMENT" --non-interactive
+        run: npx --yes eas-cli@27.1.0 update --channel "$UPDATE_CHANNEL" --message "$UPDATE_MESSAGE" --environment "$UPDATE_ENVIRONMENT" --non-interactive
