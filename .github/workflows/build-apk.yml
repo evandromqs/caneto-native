@@ -121,7 +121,7 @@ jobs:
       - name: Configure Gradle memory limits
         run: |
           GRADLE_PROPERTIES="android/gradle.properties"
-          JVM_ARGS='org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8'
+          JVM_ARGS='org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8'
 
           if grep -q '^org.gradle.jvmargs=' "$GRADLE_PROPERTIES"; then
             sed -i "s|^org.gradle.jvmargs=.*|$JVM_ARGS|" "$GRADLE_PROPERTIES"
@@ -130,12 +130,34 @@ jobs:
           fi
 
           if grep -q '^org.gradle.workers.max=' "$GRADLE_PROPERTIES"; then
-            sed -i 's|^org.gradle.workers.max=.*|org.gradle.workers.max=2|' "$GRADLE_PROPERTIES"
+            sed -i 's|^org.gradle.workers.max=.*|org.gradle.workers.max=1|' "$GRADLE_PROPERTIES"
           else
-            echo 'org.gradle.workers.max=2' >> "$GRADLE_PROPERTIES"
+            echo 'org.gradle.workers.max=1' >> "$GRADLE_PROPERTIES"
           fi
 
-          grep -E '^org.gradle.(jvmargs|workers.max)=' "$GRADLE_PROPERTIES"
+          if grep -q '^org.gradle.parallel=' "$GRADLE_PROPERTIES"; then
+            sed -i 's|^org.gradle.parallel=.*|org.gradle.parallel=false|' "$GRADLE_PROPERTIES"
+          else
+            echo 'org.gradle.parallel=false' >> "$GRADLE_PROPERTIES"
+          fi
+
+          if grep -q '^kotlin.daemon.jvmargs=' "$GRADLE_PROPERTIES"; then
+            sed -i 's|^kotlin.daemon.jvmargs=.*|kotlin.daemon.jvmargs=-Xmx768m|' "$GRADLE_PROPERTIES"
+          else
+            echo 'kotlin.daemon.jvmargs=-Xmx768m' >> "$GRADLE_PROPERTIES"
+          fi
+
+          grep -E '^(org.gradle.(jvmargs|workers.max|parallel)|kotlin.daemon.jvmargs)=' "$GRADLE_PROPERTIES"
+
+      - name: Prepare Expo inline modules
+        working-directory: android
+        run: |
+          EXPO_ANDROID_DIR="$(cd ../node_modules/expo/android && pwd)"
+          node --no-warnings --eval "require('expo/bin/autolinking')" \
+            expo-modules-autolinking mirror-kotlin-inline-modules \
+            --kotlin-files-mirror-directory "$EXPO_ANDROID_DIR/src/main/java/inline/modules" \
+            --inline-modules-list-directory "$EXPO_ANDROID_DIR/build/inline/modules" \
+            --watched-directories-serialized '[]'
 
       - name: Verify release signing configuration
         run: |
@@ -159,7 +181,7 @@ jobs:
           EXPO_PUBLIC_CANETO_API_URL: ${{ env.EXPO_PUBLIC_CANETO_API_URL }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=1 -x lintVitalAnalyzeRelease
 
       - name: Prepare APK Asset
         run: |
