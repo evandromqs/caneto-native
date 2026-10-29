@@ -114,6 +114,55 @@ export async function removeItem(item: Item) {
   await syncWrite({ table: 'lists', action: 'update', entityId: item.list_id, match: { id: item.list_id }, payload: { updated_at: now } });
 }
 
+export async function uncheckAllItems(listId: string, items: Item[]) {
+  const now = Date.now();
+  patchLists(lists => lists.map(list => list.id === listId ? {
+    ...list,
+    updated_at: now,
+    items: list.items.map(i => ({ ...i, checked: false, checked_at: null })),
+  } : list));
+
+  for (const item of items) {
+    if (item.checked) {
+      await syncWrite({ table: 'items', action: 'update', entityId: item.id, match: { id: item.id }, payload: { checked: false, checked_at: null, updated_at: now } });
+    }
+  }
+  await syncWrite({ table: 'lists', action: 'update', entityId: listId, match: { id: listId }, payload: { updated_at: now } });
+}
+
+export async function addBatchItems(
+  userId: string,
+  listId: string,
+  items: { name: string; quantity: number; unit: string; price?: number; categoryId: string }[]
+) {
+  const now = Date.now();
+  const createdItems: Item[] = items.map(input => ({
+    id: generateUUID(),
+    list_id: listId,
+    user_id: userId,
+    name: input.name,
+    category_id: input.categoryId,
+    quantity: input.quantity,
+    unit: input.unit,
+    price: input.price ?? null,
+    checked: false,
+    checked_at: null,
+    created_at: now,
+    updated_at: now,
+  }));
+
+  patchLists(lists => lists.map(list => list.id === listId ? {
+    ...list,
+    updated_at: now,
+    items: [...list.items, ...createdItems],
+  } : list));
+
+  for (const item of createdItems) {
+    await syncWrite({ table: 'items', action: 'insert', entityId: item.id, match: { id: item.id }, payload: item, userId });
+  }
+  await syncWrite({ table: 'lists', action: 'update', entityId: listId, match: { id: listId }, payload: { updated_at: now } });
+}
+
 export async function setListCompleted(list: List, completed: boolean) {
   const now = Date.now();
   const total = list.items.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);

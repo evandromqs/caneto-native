@@ -57,20 +57,25 @@ export async function loadHistory(userId: string): Promise<Purchase[]> {
   return (data ?? []) as Purchase[];
 }
 
-export async function recreatePurchase(record: Purchase, userId: string): Promise<void> {
+export async function recreatePurchase(
+  record: Purchase | { list_name?: string; listName?: string; store_name?: string; storeName?: string; items: { name: string; quantity: number; unit: string; price?: number | null }[] },
+  userId: string
+): Promise<void> {
+  const name = ('listName' in record && record.listName) ? record.listName : ('list_name' in record && record.list_name) ? record.list_name : 'Lista recriada';
+  const store = ('storeName' in record && record.storeName) ? record.storeName : ('store_name' in record && record.store_name) ? record.store_name : undefined;
   const payload = createListPayload({
-    name: record.list_name,
+    name,
     userId,
-    storeName: record.store_name,
+    storeName: store,
   });
   const now = Date.now();
   const items = record.items.map(item => ({
     id: generateUUID(), list_id: payload.id, user_id: userId, name: item.name, category_id: 'other',
-    quantity: item.quantity, unit: item.unit, price: item.price, checked: false, created_at: now, updated_at: now,
+    quantity: item.quantity, unit: item.unit, price: item.price ?? null, checked: false, created_at: now, updated_at: now,
   }));
   patchLists(lists => [{
     id: payload.id, name: payload.name, color: 'emerald', user_id: userId, is_completed: false,
-    store_name: record.store_name, created_at: now, updated_at: now,
+    store_name: store, created_at: now, updated_at: now,
     items: items.map(item => ({ ...item, checked_at: null })),
   }, ...lists]);
   await syncWrite({ table: 'lists', action: 'insert', entityId: payload.id, match: { id: payload.id }, payload, userId });

@@ -8,7 +8,7 @@ import { supabase } from './src/supabase';
 import { createThemedStyles, setAppTheme, theme } from './src/ui/theme';
 import { NewListModal, ItemEditModal } from './src/features/lists/ListModals';
 import { ListEditModal } from './src/features/lists/ListEditModal';
-import { duplicateList, mergeListsData, removeItem, removeList, renameList, saveItemChanges, setListCompleted } from './src/features/lists/repository';
+import { addBatchItems, duplicateList, mergeListsData, removeList, renameList, saveItemChanges, setListCompleted, uncheckAllItems } from './src/features/lists/repository';
 import { JoinListModal, ShareListModal } from './src/features/sharing/SharingModals';
 import { joinListByCode } from './src/features/sharing/repository';
 import { ProfileModal } from './src/features/profile/ProfileModal';
@@ -20,8 +20,10 @@ import type { DeletedShoppingItem, Profile, Purchase, ShoppingItem, ShoppingList
 import { canetoData } from './src/core/data/supabaseAdapter';
 import { AccountAuthActions } from './src/features/account/AccountAuthActions';
 import { ShoppingListScreen } from './src/features/cart/ShoppingListScreen';
+import { BatchImportModal } from './src/features/cart/BatchImportModal';
 import { CanetoIcon } from './src/ui/CanetoIcon';
 import { SocialScreen, type SocialFriend, type SocialInvitation, type SocialSearchResult } from './src/features/social/SocialScreen';
+import { FriendDetailsModal } from './src/features/social/FriendDetailsModal';
 import {
   acceptFriendRequest,
   acceptListInvitation,
@@ -29,12 +31,18 @@ import {
   declineFriendRequest,
   declineListInvitation,
   loadSocialData,
+  removeFriendship,
   searchSocialUsers,
   sendFriendRequest,
+  shareListWithFriend,
   type SocialDataProps,
 } from './src/features/social/repository';
 import { SettingsScreen } from './src/features/settings/SettingsScreen';
 import { FeedbackModal } from './src/features/settings/FeedbackModal';
+import { ChangelogModal } from './src/features/settings/ChangelogModal';
+import { OnboardingModal } from './src/features/settings/OnboardingModal';
+import { StatsDetailsModal } from './src/features/purchases/StatsDetailsModal';
+import { requestNotificationPermission } from './src/core/device/notifications';
 import type { ProductSuggestion } from './src/features/products/search';
 import type { SettingsPreferences } from './src/features/settings/SettingsScreen';
 import { updatePreferences } from './src/features/account/profile';
@@ -86,6 +94,11 @@ export default function App() {
   const [checkingOnlineUpdate, setCheckingOnlineUpdate] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [batchImportOpen, setBatchImportOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<SocialFriend | null>(null);
   const [syncText, setSyncText] = useState('');
   const pendingDeletedItemRef = useRef<{ item: ShoppingItem; listId: string } | null>(null);
   const [tabTranslateX] = useState(() => new Animated.Value(0));
@@ -294,13 +307,20 @@ export default function App() {
   useEffect(() => {
     if (Platform.OS !== 'android' || !session) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (batchImportOpen) { setBatchImportOpen(false); return true; }
+      if (changelogOpen) { setChangelogOpen(false); return true; }
+      if (onboardingOpen) { setOnboardingOpen(false); return true; }
+      if (statsOpen) { setStatsOpen(false); return true; }
+      if (selectedFriend) { setSelectedFriend(null); return true; }
+      if (feedbackOpen) { setFeedbackOpen(false); return true; }
+      if (updateModalVisible) { setUpdateModalVisible(false); return true; }
       if (modal) { setModal(null); return true; }
       if (selectedId) { setSelectedId(null); return true; }
       if (tab !== 'lists') { setTab('lists'); return true; }
       return false;
     });
     return () => subscription.remove();
-  }, [session, modal, selectedId, tab]);
+  }, [session, modal, selectedId, tab, batchImportOpen, changelogOpen, onboardingOpen, statsOpen, selectedFriend, feedbackOpen, updateModalVisible]);
 
   async function authenticate() {
     if (!email.trim() || !password) return Alert.alert('Preencha e-mail e senha');
@@ -423,6 +443,22 @@ export default function App() {
     deletedToastItem={deletedToastItem}
     onUndoDelete={handleUndoDelete}
     onDismissDeleteToast={handleCommitDelete}
+    onOpenBatchImport={() => setBatchImportOpen(true)}
+    onUncheckAll={async () => {
+      if (!selected) return;
+      await mutate(() => uncheckAllItems(selected.id, selected.items), false);
+    }}
+    onClearPurchased={() => {
+      if (!selected) return;
+      const purchased = selected.items.filter(i => i.checked);
+      for (const item of purchased) {
+        startDeleteItem(item);
+      }
+    }}
+    checkboxStyle={preferences.checkboxStyle}
+    vibrationEnabled={preferences.vibration}
+    soundEffectsEnabled={preferences.soundEffects}
+    keepScreenAwakeEnabled={preferences.keepScreenAwake}
   /> : <View style={styles.tabContentContainer}>
     <Animated.View style={[styles.screenArea, { opacity: tabOpacity, transform: [{ translateX: tabTranslateX }] }]}>
       {tab === 'lists' && <ListsOverview
@@ -478,6 +514,7 @@ export default function App() {
         onDeclineInvitation={handleDeclineInvitation}
         onOpenJoin={() => setModal('join')}
         onOpenList={id => setSelectedId(id)}
+        onOpenFriend={friend => setSelectedFriend(friend)}
         onRetryFriends={() => {
           if (session) void reloadSocial(session.user.id);
         }}
@@ -507,6 +544,8 @@ export default function App() {
           }
         }}
         onOpenFeedback={() => setFeedbackOpen(true)}
+        onOpenChangelog={() => setChangelogOpen(true)}
+        onOpenOnboarding={() => setOnboardingOpen(true)}
         onCheckUpdate={async () => {
           if (IS_EXPO_GO) {
             Alert.alert('Atualização', 'A atualização por APK está disponível no Caneto instalado, fora do Expo Go.');
@@ -526,7 +565,10 @@ export default function App() {
             Alert.alert('Atualização', 'Não foi possível verificar a versão no GitHub. Verifique a conexão e tente novamente.');
           }
         }}
-        onChangePreferences={next => {
+        onChangePreferences={async next => {
+          if (next.notifications && !preferences.notifications) {
+            await requestNotificationPermission();
+          }
           setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : {
             id: session.user.id,
             email: session.user.email ?? undefined,
@@ -540,7 +582,7 @@ export default function App() {
           });
         }}
         onOpenProfile={() => setModal('profile')}
-        onOpenHistory={() => setModal('history')}
+        onOpenHistory={() => setStatsOpen(true)}
         onSignOut={() => { void supabase.auth.signOut(); }}
       />}
     </Animated.View>
@@ -657,6 +699,54 @@ export default function App() {
       for (const item of result.items) await addScannedItem(session.user.id, selectedId, item);
       await refresh(session.user.id);
     }} />
+    <BatchImportModal
+      visible={batchImportOpen}
+      onClose={() => setBatchImportOpen(false)}
+      onImportItems={async items => {
+        if (!selected || !session) return;
+        await addBatchItems(session.user.id, selected.id, items);
+        await refresh(session.user.id);
+      }}
+    />
+    <ChangelogModal visible={changelogOpen} onClose={() => setChangelogOpen(false)} />
+    <OnboardingModal visible={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
+    <StatsDetailsModal
+      visible={statsOpen}
+      purchases={purchases}
+      onClose={() => setStatsOpen(false)}
+      onRecreate={async record => {
+        await recreatePurchase(record, session.user.id);
+        await refresh(session.user.id);
+      }}
+    />
+    <FriendDetailsModal
+      visible={!!selectedFriend}
+      friend={selectedFriend}
+      allLists={lists.map(l => l.domain).filter((l): l is ShoppingList => !!l)}
+      onClose={() => setSelectedFriend(null)}
+      onOpenList={id => {
+        setSelectedFriend(null);
+        setSelectedId(id);
+      }}
+      onShareListWithFriend={async (listId, friend) => {
+        if (!session) return;
+        const targetList = lists.find(l => l.id === listId);
+        await shareListWithFriend(
+          listId,
+          targetList?.name || 'Lista',
+          session.user.id,
+          profile?.displayName || session.user.email?.split('@')[0] || 'Usuário',
+          profile?.username || '',
+          friend.id
+        );
+        await refresh(session.user.id);
+      }}
+      onRemoveFriend={async friend => {
+        if (!session) return;
+        await removeFriendship(session.user.id, friend.id);
+        await reloadSocial(session.user.id);
+      }}
+    />
   </SafeAreaView>;
 }
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Caneto",
     "slug": "caneto-native",
-    "version": "1.0.8",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -12,8 +12,14 @@
     },
     "android": {
       "package": "com.evandromqs.caneto",
-      "versionCode": 8,
+      "versionCode": 9,
       "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "VIBRATE",
+        "WAKE_LOCK",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0943F1",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -62,6 +68,13 @@
         "expo-image-picker",
         {
           "photosPermission": "O Caneto acessa a galeria para escolher a foto da fachada."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0943F1"
         }
       ]
     ],

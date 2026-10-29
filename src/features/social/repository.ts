@@ -386,3 +386,33 @@ export async function declineListInvitation(userId: string, invitationId: string
   if (error) throw error;
   if (!data) throw new Error('O convite já foi respondido. Atualize a lista.');
 }
+
+export async function removeFriendship(userId: string, friendshipId: string): Promise<void> {
+  const { error } = await supabase.from('friends').delete().eq('id', friendshipId);
+  if (error) throw error;
+}
+
+export async function shareListWithFriend(
+  listId: string,
+  listName: string,
+  senderId: string,
+  senderName: string,
+  senderUsername: string,
+  recipientId: string
+): Promise<void> {
+  const now = Date.now();
+  const { error } = await supabase.from('list_shares').insert({
+    list_id: listId,
+    list_name: listName,
+    sender_id: senderId,
+    sender_name: senderName,
+    sender_username: senderUsername,
+    recipient_id: recipientId,
+    status: 'pending',
+    permission: 'editor',
+    created_at: now,
+    updated_at: now,
+  });
+  if (error) throw error;
+}
+
