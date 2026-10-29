@@ -2,6 +2,8 @@ import { Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { CANETO_API } from '../../core/api';
 
 export const GITHUB_REPO = 'evandromqs/caneto-native';
@@ -143,7 +145,75 @@ export async function checkAppUpdate(): Promise<AppReleaseInfo | null> {
     };
 }
 
-/** Abre o navegador do Android para baixar o APK. A instalação é confirmada pelo usuário. */
+export interface ApkDownloadProgress {
+  totalBytesWritten: number;
+  totalBytesExpectedToWrite: number;
+  percentage: number;
+}
+
+/**
+ * Baixa o APK da atualização diretamente no app com progresso e inicia o instalador nativo do Android.
+ */
+export async function downloadAndInstallApk(
+  apkUrl: string,
+  onProgress?: (progress: ApkDownloadProgress) => void
+): Promise<void> {
+  if (Platform.OS !== 'android' || IS_EXPO_GO) {
+    throw new Error('A atualização por APK só está disponível no aplicativo Android instalado.');
+  }
+  if (!validApkUrl(apkUrl)) {
+    throw new Error('O link do APK é inválido.');
+  }
+
+  const cacheDir = FileSystem.cacheDirectory;
+  if (!cacheDir) {
+    throw new Error('Diretório temporário indisponível no aparelho.');
+  }
+
+  const targetFileUri = `${cacheDir}caneto-update.apk`;
+
+  try {
+    const info = await FileSystem.getInfoAsync(targetFileUri);
+    if (info.exists) {
+      await FileSystem.deleteAsync(targetFileUri, { idempotent: true });
+    }
+  } catch {
+    // Prossegue se não for possível deletar arquivo prévio
+  }
+
+  const downloadResumable = FileSystem.createDownloadResumable(
+    apkUrl,
+    targetFileUri,
+    {},
+    downloadProgress => {
+      const { totalBytesWritten, totalBytesExpectedToWrite } = downloadProgress;
+      const percentage = totalBytesExpectedToWrite > 0
+        ? Math.min(100, Math.max(0, Math.round((totalBytesWritten / totalBytesExpectedToWrite) * 100)))
+        : 0;
+      onProgress?.({
+        totalBytesWritten,
+        totalBytesExpectedToWrite,
+        percentage,
+      });
+    }
+  );
+
+  const result = await downloadResumable.downloadAsync();
+  if (!result || !result.uri) {
+    throw new Error('Falha ao descarregar o arquivo de atualização.');
+  }
+
+  // Gera o content:// URI com permissão de leitura para o instalador nativo
+  const contentUri = await FileSystem.getContentUriAsync(result.uri);
+
+  await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+    data: contentUri,
+    type: 'application/vnd.android.package-archive',
+    flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+  });
+}
+
+/** Abre o navegador do Android para baixar o APK como alternativa. */
 export async function openApkDownload(apkUrl: string): Promise<void> {
   if (Platform.OS !== 'android' || IS_EXPO_GO) throw new Error('A atualização por APK só está disponível no aplicativo Android instalado.');
   if (!validApkUrl(apkUrl)) throw new Error('O link do APK é inválido.');

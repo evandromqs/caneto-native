@@ -56,6 +56,9 @@ import { bindSyncUser, flushOutbox, subscribeSync, watchConnectivity } from './s
 import { readListCache, subscribeListCache } from './src/core/sync/listCache';
 import { subscribeShoppingChanges } from './src/core/sync/realtime';
 import { LaunchSplash } from './src/features/launch/LaunchSplash';
+import * as SplashScreen from 'expo-splash-screen';
+
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const green = theme.blue;
 type TabId = 'lists' | 'stores' | 'social' | 'settings';
@@ -108,6 +111,12 @@ export default function App() {
     const timer = setTimeout(() => setLaunchReady(true), 900);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!starting && (fontsLoaded || fontError) && launchReady) {
+      void SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [starting, fontsLoaded, fontError, launchReady]);
 
   const selectTab = useCallback((nextTab: TabId) => {
     tabTranslateX.stopAnimation();

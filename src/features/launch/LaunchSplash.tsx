@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 type LaunchSplashProps = {
   dark: boolean;
@@ -59,21 +59,29 @@ export function LaunchSplash({ dark }: LaunchSplashProps) {
   const ink = dark ? '#F8FAFC' : '#0F172A';
   const muted = dark ? '#94A3B8' : '#64748B';
 
-  return <View style={[styles.root, { backgroundColor }]}>
-    <View style={[styles.glow, { backgroundColor: dark ? '#10245B' : '#DFE7FF' }]} />
-    <Animated.View style={[styles.logoWrap, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
-      <View style={[styles.logoCard, { backgroundColor: dark ? '#0F172A' : '#FFFFFF' }]}>
-        <Image source={require('../../../assets/logo.webp')} style={styles.logo} resizeMode="contain" />
+  const progressTranslateX = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-116, 0],
+  });
+
+  return (
+    <View style={[styles.root, { backgroundColor }]}>
+      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
+      <View style={[styles.glow, { backgroundColor: dark ? '#10245B' : '#DFE7FF' }]} />
+      <Animated.View style={[styles.logoWrap, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
+        <View style={[styles.logoCard, { backgroundColor: dark ? '#0F172A' : '#FFFFFF' }]}>
+          <Image source={require('../../../assets/logo.webp')} style={styles.logo} resizeMode="contain" />
+        </View>
+      </Animated.View>
+      <Animated.View style={[styles.copy, { opacity: copyOpacity, transform: [{ translateY: copyTranslateY }] }]}>
+        <Text style={[styles.brand, { color: ink }]}>Caneto<Text style={styles.trademark}>™</Text></Text>
+        <Text style={[styles.tagline, { color: muted }]}>A lista que te entende</Text>
+      </Animated.View>
+      <View style={[styles.progressTrack, { backgroundColor: dark ? '#1E293B' : '#DCE3F2' }]}>
+        <Animated.View style={[styles.progressBar, { transform: [{ translateX: progressTranslateX }] }]} />
       </View>
-    </Animated.View>
-    <Animated.View style={[styles.copy, { opacity: copyOpacity, transform: [{ translateY: copyTranslateY }] }]}>
-      <Text style={[styles.brand, { color: ink }]}>Caneto<Text style={styles.trademark}>™</Text></Text>
-      <Text style={[styles.tagline, { color: muted }]}>A lista que te entende</Text>
-    </Animated.View>
-    <View style={[styles.progressTrack, { backgroundColor: dark ? '#1E293B' : '#DCE3F2' }]}>
-      <Animated.View style={[styles.progressBar, { transform: [{ scaleX: progress }] }]} />
     </View>
-  </View>;
+  );
 }
 
 const styles = StyleSheet.create({
@@ -87,5 +95,5 @@ const styles = StyleSheet.create({
   trademark: { color: '#0943F1', fontSize: 13, fontWeight: '700' },
   tagline: { marginTop: 3, fontSize: 15, fontWeight: '600', letterSpacing: 0.2 },
   progressTrack: { position: 'absolute', bottom: 62, width: 116, height: 4, borderRadius: 2, overflow: 'hidden' },
-  progressBar: { width: '100%', height: '100%', borderRadius: 2, backgroundColor: '#0943F1', transformOrigin: 'left' },
+  progressBar: { width: 116, height: 4, borderRadius: 2, backgroundColor: '#0943F1' },
 });
