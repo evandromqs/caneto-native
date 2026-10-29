@@ -8,7 +8,7 @@ import { supabase } from './src/supabase';
 import { createThemedStyles, setAppTheme, theme } from './src/ui/theme';
 import { NewListModal, ItemEditModal } from './src/features/lists/ListModals';
 import { ListEditModal } from './src/features/lists/ListEditModal';
-import { duplicateList, removeItem, removeList, renameList, saveItemChanges, setListCompleted } from './src/features/lists/repository';
+import { duplicateList, mergeListsData, removeItem, removeList, renameList, saveItemChanges, setListCompleted } from './src/features/lists/repository';
 import { JoinListModal, ShareListModal } from './src/features/sharing/SharingModals';
 import { joinListByCode } from './src/features/sharing/repository';
 import { ProfileModal } from './src/features/profile/ProfileModal';
@@ -595,6 +595,7 @@ export default function App() {
       }
     }} />
     <ListEditModal list={modal === 'list' ? modalList?.domain ?? null : null} onClose={() => setModal(null)}
+      lists={lists.map(r => r.domain ?? ({ id: r.id, name: r.name, isCompleted: r.is_completed, items: r.items } as any))}
       trashCount={modalList ? getValidTrash(modalList.id).length : 0}
       onOpenTrash={list => { setSelectedId(list.id); setModal('trash'); }}
       onSave={async (list, changes) => {
@@ -603,9 +604,14 @@ export default function App() {
       }}
       onShare={list => { setModalListId(list.id); setModal('share'); }}
       onDuplicate={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => duplicateList(legacy, session.user.id), false); }}
+      onMergeLists={async (targetId, sourceId, deleteSource) => {
+        if (!session) return;
+        await mutate(() => mergeListsData(targetId, sourceId, deleteSource ?? false, session.user.id));
+        await refresh(session.user.id);
+      }}
       onDelete={list => mutate(async () => { await removeList(list.id); if (selectedId === list.id) setSelectedId(null); }, false)}
       onComplete={async list => { const legacy = lists.find(row => row.id === list.id); if (!legacy) return; if (list.isCompleted) await mutate(() => setListCompleted(legacy, false), false); else { setModalListId(list.id); setModal('payment'); } }} />
-    <ItemEditModal visible={modal === 'item'} item={modalItem} onClose={() => setModal(null)} onSave={async changes => { if (modalItem) await mutate(() => saveItemChanges(modalItem, changes)); }} onDelete={async () => { if (modalItem) startDeleteItem(modalItem); }} />
+    <ItemEditModal visible={modal === 'item'} item={modalItem} isCompleted={selected?.is_completed ?? false} onClose={() => setModal(null)} onSave={async changes => { if (modalItem) await mutate(() => saveItemChanges(modalItem, changes)); }} onDelete={async () => { if (modalItem) startDeleteItem(modalItem); }} />
     <JoinListModal visible={modal === 'join'} onClose={() => setModal(null)} onJoin={async code => { const result = await joinListByCode(code); if (result === 'joined') await refresh(session.user.id); return result; }} />
     <ShareListModal visible={modal === 'share'} list={modalList} onClose={() => { setModal(null); void refresh(session.user.id); }} onChanged={() => refresh(session.user.id)} />
     <ProfileModal visible={modal === 'profile'} userId={session.user.id} email={session.user.email ?? ''} onClose={() => { setModal(null); void canetoData.profile(session.user.id).then(setProfile).catch(errorMessage); }} />

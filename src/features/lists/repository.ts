@@ -42,7 +42,17 @@ export async function duplicateList(list: List, userId: string) {
   return payload.id;
 }
 
-export async function saveItemChanges(item: Item, changes: { name: string; quantity: number; unit: string; price: number | null; category_id?: string; ean?: string | null; brand?: string | null }) {
+export async function saveItemChanges(item: Item, changes: {
+  name: string;
+  quantity: number;
+  unit: string;
+  price: number | null;
+  category_id?: string;
+  ean?: string | null;
+  brand?: string | null;
+  photo_url?: string | null;
+  label_photo_url?: string | null;
+}) {
   const now = Date.now();
   const category_id = changes.category_id ?? suggestCategory(changes.name);
   const next = { ...changes, category_id, updated_at: now };
@@ -51,6 +61,50 @@ export async function saveItemChanges(item: Item, changes: { name: string; quant
   } : list));
   await syncWrite({ table: 'items', action: 'update', entityId: item.id, match: { id: item.id }, payload: next });
   await syncWrite({ table: 'lists', action: 'update', entityId: item.list_id, match: { id: item.list_id }, payload: { updated_at: now } });
+}
+
+export async function mergeListsData(targetListId: string, sourceListId: string, deleteSource: boolean, userId: string) {
+  let generatedItems: Item[] = [];
+  const now = Date.now();
+
+  patchLists(lists => {
+    const source = lists.find(l => l.id === sourceListId);
+    if (!source) return lists;
+    generatedItems = source.items.map(item => ({
+      ...item,
+      id: generateUUID(),
+      list_id: targetListId,
+      user_id: userId,
+      checked: false,
+      checked_at: null,
+      notes: item.notes ?? null,
+      photo_url: item.photo_url ?? null,
+      label_photo_url: item.label_photo_url ?? null,
+      ean: item.ean ?? null,
+      brand: item.brand ?? null,
+      created_at: now,
+      updated_at: now,
+    }));
+    return lists.map(list => {
+      if (list.id === targetListId) {
+        return {
+          ...list,
+          updated_at: now,
+          items: [...list.items, ...generatedItems],
+        };
+      }
+      return list;
+    });
+  });
+
+  for (const item of generatedItems) {
+    await syncWrite({ table: 'items', action: 'insert', entityId: item.id, match: { id: item.id }, payload: item, userId });
+  }
+  await syncWrite({ table: 'lists', action: 'update', entityId: targetListId, match: { id: targetListId }, payload: { updated_at: now } });
+
+  if (deleteSource) {
+    await removeList(sourceListId);
+  }
 }
 
 export async function removeItem(item: Item) {

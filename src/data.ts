@@ -61,6 +61,8 @@ export type Item = {
   ean?: string | null;
   brand?: string | null;
   photo_url?: string | null;
+  label_photo_url?: string | null;
+  notes?: string | null;
 };
 
 export type List = {
@@ -86,6 +88,8 @@ function toShoppingItem(item: Item): ShoppingItem {
     checked: item.checked, createdAt: item.created_at, updatedAt: item.updated_at,
     checkedAt: item.checked_at ?? undefined, ean: item.ean ?? undefined, brand: item.brand ?? undefined,
     photoUrl: item.photo_url ?? undefined,
+    labelPhotoUrl: item.label_photo_url ?? undefined,
+    notes: item.notes ?? undefined,
   };
 }
 

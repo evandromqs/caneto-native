@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ModalSheet } from '../../ui/ModalSheet';
 import { createThemedStyles, theme } from '../../ui/theme';
-import type { Item, List } from '../../data';
-import { CATEGORIES } from '../../core/categories';
-import { CanetoIcon } from '../../ui/CanetoIcon';
+import type { List } from '../../data';
 
 type NewProps = { visible: boolean; busy: boolean; onClose: () => void; onCreate: (name: string) => Promise<void> };
 export function NewListModal({ visible, busy, onClose, onCreate }: NewProps) {
@@ -38,89 +36,8 @@ function ListActionsDialog({ list, ownerId, onClose, onRename, onDuplicate, onDe
   </ModalSheet>;
 }
 
-type ItemChanges = { name: string; quantity: number; unit: string; price: number | null; category_id: string; ean: string | null; brand: string | null };
-type ItemProps = { item: Item | null; visible: boolean; onClose: () => void; onSave: (changes: ItemChanges) => Promise<void>; onDelete: () => Promise<void> };
-const units = ['un', 'kg', 'g', 'L', 'ml', 'pct', 'cx', 'dz', 'lata', 'garrafa'];
-export function ItemEditModal({ item, visible, onClose, onSave, onDelete }: ItemProps) {
-  return visible && item ? <ItemEditDialog key={item.id} item={item} onClose={onClose} onSave={onSave} onDelete={onDelete} /> : null;
-}
-function ItemEditDialog({ item, onClose, onSave, onDelete }: Omit<ItemProps, 'visible' | 'item'> & { item: Item }) {
-  const [name, setName] = useState(item.name);
-  const [quantity, setQuantity] = useState(String(item.quantity));
-  const [unit, setUnit] = useState(item.unit);
-  const [price, setPrice] = useState(item.price == null ? '' : String(item.price).replace('.', ','));
-  const [category, setCategory] = useState(item.category_id || 'outros');
-  const [ean, setEan] = useState(item.ean || '');
-  const [brand, setBrand] = useState(item.brand || '');
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const numericPrice = price.trim() ? Number(price.replace(',', '.')) : null;
+export { ItemEditModal, type ItemChanges, type ItemEditModalProps } from './ItemEditModal';
 
-  const save = async () => {
-    const parsedQuantity = Number(quantity.replace(',', '.'));
-    if (!name.trim() || !Number.isFinite(parsedQuantity) || parsedQuantity <= 0 || (numericPrice !== null && !Number.isFinite(numericPrice))) {
-      setMessage('Confira nome, quantidade e preço.');
-      return;
-    }
-    try {
-      setBusy(true);
-      setMessage('');
-      await onSave({ name: name.trim(), quantity: parsedQuantity, unit, price: numericPrice, category_id: category, ean: ean.trim() || null, brand: brand.trim() || null });
-      onClose();
-    } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : 'Não foi possível salvar o produto.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = () => Alert.alert('Excluir produto?', item.name, [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: 'Excluir', style: 'destructive', onPress: () => void onDelete().then(onClose) },
-  ]);
-
-  const footer = <View style={styles.itemFooter}>
-    <Pressable style={({ pressed }) => [styles.itemDelete, pressed && styles.itemPressed]} onPress={remove} disabled={busy}><Ionicons name="trash-outline" size={17} color={theme.danger} /><Text style={styles.itemDeleteText}>Excluir</Text></Pressable>
-    <Pressable style={({ pressed }) => [styles.itemSave, pressed && styles.itemPressed, busy && styles.disabled]} onPress={() => void save()} disabled={busy}><Ionicons name="save-outline" size={17} color="#FFFFFF" /><Text style={styles.itemSaveText}>{busy ? 'Salvando...' : 'Salvar'}</Text></Pressable>
-  </View>;
-
-  return <ModalSheet visible title="Editar produto" subtitle="Revise as informações do item" headerIcon={<Ionicons name="create-outline" size={21} color={theme.blue} />} onClose={onClose} footer={footer}>
-    <View style={styles.photoCard}>
-      {item.photo_url ? <Image source={{ uri: item.photo_url }} style={styles.itemPhoto} resizeMode="cover" /> : <View style={styles.photoFallback}><CanetoIcon name={category} size={54} color={theme.blue} /><Text style={styles.photoHint}>Foto do produto</Text></View>}
-    </View>
-
-    <Text style={styles.compactLabel}>Produto</Text>
-    <TextInput style={[styles.compactInput, styles.productName]} value={name} onChangeText={setName} placeholder="Nome do produto" placeholderTextColor={theme.placeholder} />
-
-    <View style={styles.twoColumns}>
-      <View style={styles.column}>
-        <Text style={styles.compactLabel}>Qtd.</Text>
-        <View style={styles.compactStepper}><Pressable style={styles.stepperSide} onPress={() => setQuantity(String(Math.max(0.1, (Number(quantity.replace(',', '.')) || 1) - 1)))}><Ionicons name="remove" size={18} color={theme.ink} /></Pressable><TextInput style={styles.stepperInput} keyboardType="decimal-pad" value={quantity} onChangeText={setQuantity} /><Pressable style={styles.stepperSide} onPress={() => setQuantity(String((Number(quantity.replace(',', '.')) || 0) + 1))}><Ionicons name="add" size={18} color={theme.ink} /></Pressable></View>
-      </View>
-      <View style={styles.column}>
-        <Text style={styles.compactLabel}>Unidade</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.compactUnits}>{units.map(value => <Pressable key={value} style={[styles.compactUnit, unit === value && styles.compactUnitActive]} onPress={() => setUnit(value)}><Text style={[styles.compactUnitText, unit === value && styles.compactUnitTextActive]}>{value}</Text></Pressable>)}</ScrollView>
-      </View>
-    </View>
-
-    <View style={styles.priceHeading}><Text style={styles.compactLabel}>Preço</Text><Text style={styles.optional}>opcional</Text></View>
-    <View style={styles.priceField}><Text style={styles.currency}>R$</Text><TextInput style={styles.priceInput} keyboardType="decimal-pad" value={price} onChangeText={setPrice} placeholder="0,00" placeholderTextColor={theme.placeholder} /><View style={styles.calculator}><Ionicons name="calculator-outline" size={19} color={theme.blue} /></View></View>
-
-    <Pressable style={styles.detailsToggle} onPress={() => setDetailsOpen(value => !value)} accessibilityRole="button" accessibilityState={{ expanded: detailsOpen }}>
-      <Text style={styles.detailsTitle}>Mais detalhes do produto</Text><View style={styles.detailsSummary}><Text style={styles.detailsSummaryText}>{ean ? 'EAN informado' : 'Sem EAN'}</Text><Ionicons name={detailsOpen ? 'remove' : 'add'} size={18} color={theme.muted} /></View>
-    </Pressable>
-    {detailsOpen && <View style={styles.detailsBody}>
-      <Text style={styles.compactLabel}>Categoria</Text>
-      <View style={styles.categoryGrid}>{Object.values(CATEGORIES).map(entry => <Pressable key={entry.id} style={[styles.categoryChip, category === entry.id && styles.categoryChipActive]} onPress={() => setCategory(entry.id)}><CanetoIcon name={entry.id} size={16} color={category === entry.id ? '#FFFFFF' : theme.blue} /><Text style={[styles.categoryChipText, category === entry.id && styles.categoryChipTextActive]}>{entry.name}</Text></Pressable>)}</View>
-      <View style={styles.twoColumns}>
-        <View style={styles.column}><Text style={styles.compactLabel}>Código de barras</Text><TextInput style={styles.compactInput} value={ean} onChangeText={setEan} placeholder="EAN" placeholderTextColor={theme.placeholder} keyboardType="number-pad" /></View>
-        <View style={styles.column}><Text style={styles.compactLabel}>Marca</Text><TextInput style={styles.compactInput} value={brand} onChangeText={setBrand} placeholder="Ex: Lacta" placeholderTextColor={theme.placeholder} /></View>
-      </View>
-    </View>}
-    {!!message && <Text style={styles.itemError} accessibilityRole="alert">{message}</Text>}
-  </ModalSheet>;
-}
 
 function Action({ icon, label, onPress, danger = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void | Promise<unknown>; danger?: boolean }) {
   return <Pressable style={styles.action} onPress={onPress}><Ionicons name={icon} size={19} color={danger ? theme.danger : theme.blue} /><Text style={[styles.actionText, danger && { color: theme.danger }]}>{label}</Text><Ionicons name="chevron-forward" size={16} color="#94A3B8" /></Pressable>;
