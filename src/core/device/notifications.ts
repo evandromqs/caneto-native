@@ -1,26 +1,33 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-// Configura o comportamento padrão quando uma notificação chega em primeiro plano com tratamento de exceção seguro
+let Notifications: any = null;
+
 try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      priority: Notifications.AndroidNotificationPriority.HIGH,
-    }),
-  });
+  // Carregamento dinâmico e seguro para evitar crash em ambientes onde ExpoTopicSubscriptionModule não existe (como Expo Go)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Notifications = require('expo-notifications');
+  if (Notifications?.setNotificationHandler) {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        priority: Notifications.AndroidNotificationPriority?.HIGH,
+      }),
+    });
+  }
 } catch (error) {
-  console.warn('Erro ao configurar handler de notificações:', error);
+  console.warn('[Notifications] Notificações nativas não disponíveis neste ambiente (ex: Expo Go):', error);
+  Notifications = null;
 }
 
 /**
  * Solicita permissões de notificação no dispositivo Android ou iOS.
  */
 export async function requestNotificationPermission(): Promise<boolean> {
+  if (!Notifications) return false;
   try {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -37,7 +44,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Caneto',
-        importance: Notifications.AndroidImportance.MAX,
+        importance: Notifications.AndroidImportance?.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#0943F1',
       });
@@ -54,6 +61,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
  * Dispara uma notificação local de teste ou aviso.
  */
 export async function sendLocalNotification(title: string, body: string): Promise<void> {
+  if (!Notifications) return;
   try {
     await Notifications.scheduleNotificationAsync({
       content: {

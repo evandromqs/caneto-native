@@ -2,8 +2,6 @@ import { Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as IntentLauncher from 'expo-intent-launcher';
 import { CANETO_API } from '../../core/api';
 
 export const GITHUB_REPO = 'evandromqs/caneto-native';
@@ -165,6 +163,12 @@ export async function downloadAndInstallApk(
     throw new Error('O link do APK é inválido.');
   }
 
+  // Carregamento dinâmico sob demanda para garantir segurança no carregamento do app
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const FileSystem = require('expo-file-system/legacy');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const IntentLauncher = require('expo-intent-launcher');
+
   const cacheDir = FileSystem.cacheDirectory;
   if (!cacheDir) {
     throw new Error('Diretório temporário indisponível no aparelho.');
@@ -185,7 +189,7 @@ export async function downloadAndInstallApk(
     apkUrl,
     targetFileUri,
     {},
-    downloadProgress => {
+    (downloadProgress: { totalBytesWritten: number; totalBytesExpectedToWrite: number }) => {
       const { totalBytesWritten, totalBytesExpectedToWrite } = downloadProgress;
       const percentage = totalBytesExpectedToWrite > 0
         ? Math.min(100, Math.max(0, Math.round((totalBytesWritten / totalBytesExpectedToWrite) * 100)))
