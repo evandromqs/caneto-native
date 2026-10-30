@@ -69,6 +69,7 @@ const Text = ({ style, ...props }: TextProps) => <NativeText {...props} style={[
 export default function App() {
   const insets = useSafeAreaInsets();
   const [fontsLoaded, fontError] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold });
+  const [fontTimeout, setFontTimeout] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [starting, setStarting] = useState(true);
   const [launchReady, setLaunchReady] = useState(false);
@@ -109,14 +110,20 @@ export default function App() {
 
   useEffect(() => {
     const timer = setTimeout(() => setLaunchReady(true), 900);
-    return () => clearTimeout(timer);
+    const fontTimer = setTimeout(() => setFontTimeout(true), 2200);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(fontTimer);
+    };
   }, []);
 
+  const fontsReady = fontsLoaded || !!fontError || fontTimeout;
+
   useEffect(() => {
-    if (!starting && (fontsLoaded || fontError) && launchReady) {
+    if ((!starting && fontsReady && launchReady) || fontTimeout) {
       void SplashScreen.hideAsync().catch(() => {});
     }
-  }, [starting, fontsLoaded, fontError, launchReady]);
+  }, [starting, fontsReady, launchReady, fontTimeout]);
 
   const selectTab = useCallback((nextTab: TabId) => {
     tabTranslateX.stopAnimation();
@@ -173,15 +180,22 @@ export default function App() {
     else setTrashItems([]);
   }, [selectedId, lists]);
   useEffect(() => {
+    const fallbackTimer = setTimeout(() => setStarting(false), 3000);
     supabase.auth.getSession()
       .then(({ data, error }) => { if (error) throw error; setSession(data.session); })
       .catch(errorMessage)
-      .finally(() => setStarting(false));
+      .finally(() => {
+        clearTimeout(fallbackTimer);
+        setStarting(false);
+      });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
       if (!next) { setLists([]); setProfile(null); setPurchases([]); setSocialData(null); setSelectedId(null); setTab('lists'); }
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(fallbackTimer);
+      subscription.unsubscribe();
+    };
   }, []);
   useEffect(() => subscribeSync(meta => {
     if (!meta.online) setSyncText(meta.pending ? `Sem conexão · ${meta.pending} alteração(ões) na fila` : 'Sem conexão · mostrando o que já está neste aparelho');
@@ -417,7 +431,7 @@ export default function App() {
   const isDark = preferences.theme === 'dark' || (preferences.theme === 'system' && systemScheme === 'dark');
   setAppTheme(isDark);
 
-  if (starting || (!fontsLoaded && !fontError) || !launchReady) return <LaunchSplash dark={isDark} />;
+  if ((starting || !fontsReady || !launchReady) && !fontTimeout) return <LaunchSplash dark={isDark} />;
   if (!session) return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior="padding"><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
     <View style={styles.brandRow}><Image source={require('./assets/logo.webp')} style={styles.brandLogo} /><Text style={styles.brand}>Caneto<Text style={styles.tm}>™</Text></Text></View>
     <Text style={styles.tagline}>Caneto - A lista que te entende</Text>
