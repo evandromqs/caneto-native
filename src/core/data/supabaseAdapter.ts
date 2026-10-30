@@ -3,7 +3,7 @@ import type { Profile, Purchase, ShoppingItem, ShoppingList, StorePrice, StoreSu
 import { itemFromRow, listFromRow, profileFromRow, purchaseFromRow, storePriceFromRow, storeSubmissionFromRow } from './rows';
 import type { ItemRow, ListMembershipRow, ListRow, ProfileRow, PurchaseRow, StorePriceRow, StoreSubmissionRow } from './rows';
 import { generateUUID, getErrorMessage } from '../../ui/error';
-import { createListPayload } from '../../data';
+import { createListPayload } from './payloads';
 import { parseQuickItemInput } from '../categories';
 
 const LIST_COLUMNS = 'id,user_id,name,icon,color,is_default,share_code,permission,access_mode,budget,store_id,store_name,store_address,is_completed,completed_at,payment_method,receipt_photo_url,receipt_qr_code,receipt_key,total_spent,detected_items_total,pending_receipt,created_at,updated_at';
