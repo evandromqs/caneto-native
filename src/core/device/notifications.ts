@@ -1,32 +1,40 @@
 import { Platform } from 'react-native';
 
 let Notifications: any = null;
+let notificationsLoaded = false;
 
-try {
-  // Carregamento dinâmico e seguro para evitar crash em ambientes onde ExpoTopicSubscriptionModule não existe (como Expo Go)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  Notifications = require('expo-notifications');
-  if (Notifications?.setNotificationHandler) {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        priority: Notifications.AndroidNotificationPriority?.HIGH,
-      }),
-    });
+function getNotifications(): any {
+  if (notificationsLoaded) return Notifications;
+  notificationsLoaded = true;
+  try {
+    // Requerido apenas na primeira chamada: avaliar no start derrubava o app quando
+    // ExpoTopicSubscriptionModule não existe (Expo Go).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    Notifications = require('expo-notifications');
+    if (Notifications?.setNotificationHandler) {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+          priority: Notifications.AndroidNotificationPriority?.HIGH,
+        }),
+      });
+    }
+  } catch (error) {
+    console.warn('[Notifications] Notificações nativas não disponíveis neste ambiente (ex: Expo Go):', error);
+    Notifications = null;
   }
-} catch (error) {
-  console.warn('[Notifications] Notificações nativas não disponíveis neste ambiente (ex: Expo Go):', error);
-  Notifications = null;
+  return Notifications;
 }
 
 /**
  * Solicita permissões de notificação no dispositivo Android ou iOS.
  */
 export async function requestNotificationPermission(): Promise<boolean> {
+  const Notifications = getNotifications();
   if (!Notifications) return false;
   try {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -61,6 +69,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
  * Dispara uma notificação local de teste ou aviso.
  */
 export async function sendLocalNotification(title: string, body: string): Promise<void> {
+  const Notifications = getNotifications();
   if (!Notifications) return;
   try {
     await Notifications.scheduleNotificationAsync({

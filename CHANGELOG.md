@@ -23,8 +23,9 @@ Cada versão abaixo tem escopo fechado, critério de aceite e arquivos esperados
 | 1.1.7 | PATCH | Fotos de produto/etiqueta/recibo no Supabase Storage | P0.2 | Pulado |
 | 1.1.8 | PATCH | Publicação de `store_prices` ao finalizar compra | P0.3 | Pulado |
 | 1.2.0 | MINOR | Compra completa: foto do cupom, anexar depois, loja/histórico completos, CTA de finalizar e nova lista ao concluir | P1 | Publicado |
-| 1.2.1 | MINOR | Conta: onboarding com perfil/@/visibilidade/preferências, avatar, troca de senha, excluir conta e tela de upgrade | P1 | Planejado |
-| 1.2.2 | MINOR | Captura: lanterna, trocar câmera, galeria, modo etiqueta, modo lista e auditoria de nota | P1 | Planejado |
+| 1.2.1 | PATCH | Corrige encerramento instantâneo ao abrir: remove `expo-av` (sem versão para o SDK 57) e adia módulos nativos | Crash no start | Em validação |
+| 1.2.2 | MINOR | Conta: onboarding com perfil/@/visibilidade/preferências, avatar, troca de senha, excluir conta e tela de upgrade | P1 | Planejado |
+| 1.2.3 | MINOR | Captura: lanterna, trocar câmera, galeria, modo etiqueta, modo lista e auditoria de nota | P1 | Planejado |
 | 1.3.0 | MINOR | Social: presença, ranking com amigos e push real | P1 | Planejado |
 | 1.3.1 | MINOR | Itens: observações, etiqueta com IA, nutrição/OFF, preço promocional, voz e multi-add inline | P1 | Planejado |
 | 1.4.0 | MINOR | Locais: favoritos, métricas/ofertas e catálogo vivo | P1 | Planejado |
@@ -122,11 +123,38 @@ Cada versão abaixo tem escopo fechado, critério de aceite e arquivos esperados
 
 ---
 
-## v1.2.1 — Conta e plano (planejado)
+## v1.2.1 — Correção do encerramento instantâneo (2026-11-03)
+
+**Status:** Em validação
+
+### Correções
+
+- **`expo-av` incompatível com o SDK 57.** A dependência não existe na lista de módulos do SDK 57 (`bundledNativeModules`) e era registrada no binário nativo mesmo sem uso. O módulo nativo derrubava o processo antes de qualquer tela aparecer. A dependência foi removida; os efeitos sonoros (que já eram um stub sem áudio) não dependem mais dela.
+- **Módulos nativos carregados sob demanda.** `expo-notifications` passou a ser requerido apenas quando solicitado, evitando falha de inicialização em ambientes sem o módulo.
+- **Tela de erro em vez de fechamento.** `src/app/index.tsx` agora envolve o app em um `ErrorBoundary`; uma falha de renderização mostra a mensagem e um botão “Tentar novamente” em vez de encerrar.
+- **`versionCode` 12 → 13.** Como o `runtimeVersion` usa `appVersion`, o novo APK ignora qualquer atualização EAS publicada para a 1.2.0.
+
+### Arquivos
+
+- `package.json` / `package-lock.json`: remoção de `expo-av`.
+- `src/core/device/sounds.ts`: sem carregamento de `expo-av`.
+- `src/core/device/notifications.ts`: carregamento sob demanda.
+- `src/app/index.tsx`: `ErrorBoundary` de inicialização.
+- `app.json`: versão 1.2.1 e `versionCode` 13.
+
+### Critério de aceite
+
+- Instalar o APK 1.2.1 e abrir: o app permanece aberto e chega à tela de login/lista.
+- Nenhum crash nativo no `adb logcat -b crash` durante a abertura.
+- Listas, sincronização e o fluxo de compra da 1.2.0 continuam funcionando.
+
+---
+
+## v1.2.2 — Conta e plano (planejado)
 
 - Onboarding com perfil, @, visibilidade e preferências; avatar/emoji; disponibilidade de @; visibilidade discreta; troca de senha; exclusão de conta; tela de upgrade com cota.
 
-## v1.2.2 — Captura completa (planejado)
+## v1.2.3 — Captura completa (planejado)
 
 - Lanterna, troca de câmera, galeria, modo etiqueta (`/api/label`), modo lista e auditoria de nota.
 
