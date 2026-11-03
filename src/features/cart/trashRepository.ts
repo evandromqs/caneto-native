@@ -65,6 +65,37 @@ export function addTrashItem(item: ShoppingItem): DeletedShoppingItem {
   return trashItem;
 }
 
+/**
+ * Move vários itens comprados para a lixeira em uma única operação.
+ * Evita o fluxo antigo de exclusão item a item, que mantinha apenas o último
+ * item pendente e deixava os demais no servidor.
+ */
+export async function movePurchasedItemsToTrash(
+  userId: string,
+  listId: string,
+  items: ShoppingItem[],
+): Promise<DeletedShoppingItem[]> {
+  const unique = [...new Map(items.map(item => [item.id, item])).values()];
+  if (!unique.length) return [];
+
+  const trashed = unique.map(addTrashItem);
+  const ids = new Set(unique.map(item => item.id));
+  const now = Date.now();
+
+  patchLists(lists => lists.map(list => list.id === listId ? {
+    ...list,
+    updated_at: now,
+    items: list.items.filter(item => !ids.has(item.id)),
+  } : list));
+
+  for (const item of unique) {
+    await syncWrite({ table: 'items', action: 'delete', entityId: item.id, match: { id: item.id }, payload: null, userId });
+  }
+  await syncWrite({ table: 'lists', action: 'update', entityId: listId, match: { id: listId }, payload: { updated_at: now }, userId });
+
+  return trashed;
+}
+
 /** Remove um item específico da lixeira */
 export function removeTrashItem(listId: string, itemId: string, deletedAt?: number): void {
   const current = getValidTrash(listId);

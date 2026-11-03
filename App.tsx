@@ -47,7 +47,7 @@ import type { ProductSuggestion } from './src/features/products/search';
 import type { SettingsPreferences } from './src/features/settings/SettingsScreen';
 import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
-import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
+import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, movePurchasedItemsToTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
 import { checkAndApplyOnlineUpdate, checkAppUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
@@ -471,12 +471,13 @@ export default function App() {
       if (!selected) return;
       await mutate(() => uncheckAllItems(selected.id, selected.items), false);
     }}
-    onClearPurchased={() => {
-      if (!selected) return;
-      const purchased = selected.items.filter(i => i.checked);
-      for (const item of purchased) {
-        startDeleteItem(item);
-      }
+    onClearPurchased={async () => {
+      if (!selected?.domain) return;
+      const purchased = selected.domain.items.filter(item => item.checked);
+      if (!purchased.length) return;
+      await movePurchasedItemsToTrash(session.user.id, selected.id, purchased);
+      setTrashItems(getValidTrash(selected.id));
+      await refresh(session.user.id);
     }}
     checkboxStyle={preferences.checkboxStyle}
     vibrationEnabled={preferences.vibration}
