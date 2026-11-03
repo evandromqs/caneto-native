@@ -13,7 +13,7 @@ import { JoinListModal, ShareListModal } from './src/features/sharing/SharingMod
 import { joinListByCode } from './src/features/sharing/repository';
 import { ProfileModal } from './src/features/profile/ProfileModal';
 import { HistoryModal, PaymentModal } from './src/features/purchases/PurchaseModals';
-import { finishPurchase, recreatePurchase, type PurchaseReceipt } from './src/features/purchases/repository';
+import { attachReceipt, finishPurchase, recreatePurchase, type PurchaseReceipt } from './src/features/purchases/repository';
 import { StoreExplorer, StorePickerModal } from './src/features/stores/StoreExplorer';
 import { ListsOverview } from './src/features/lists/ListsOverview';
 import type { DeletedShoppingItem, Profile, Purchase, ShoppingItem, ShoppingList } from './src/core/models/caneto';
@@ -98,6 +98,7 @@ export default function App() {
   const [checkingOnlineUpdate, setCheckingOnlineUpdate] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [receiptAttachOpen, setReceiptAttachOpen] = useState(false);
   const [batchImportOpen, setBatchImportOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -479,6 +480,8 @@ export default function App() {
       setTrashItems(getValidTrash(selected.id));
       await refresh(session.user.id);
     }}
+    onFinish={() => { if (!selected) return; setModalListId(selected.id); setModal('payment'); }}
+    onAttachReceipt={() => setReceiptAttachOpen(true)}
     checkboxStyle={preferences.checkboxStyle}
     vibrationEnabled={preferences.vibration}
     soundEffectsEnabled={preferences.soundEffects}
@@ -681,7 +684,14 @@ export default function App() {
     <JoinListModal visible={modal === 'join'} onClose={() => setModal(null)} onJoin={async code => { const result = await joinListByCode(code); if (result === 'joined') await refresh(session.user.id); return result; }} />
     <ShareListModal visible={modal === 'share'} list={modalList} onClose={() => { setModal(null); void refresh(session.user.id); }} onChanged={() => refresh(session.user.id)} />
     <ProfileModal visible={modal === 'profile'} userId={session.user.id} email={session.user.email ?? ''} onClose={() => { setModal(null); void canetoData.profile(session.user.id).then(setProfile).catch(errorMessage); }} />
-    <PaymentModal visible={modal === 'payment'} list={modalList} userId={session.user.id} onClose={() => setModal(null)} onConfirm={async (method, receipt: PurchaseReceipt) => { if (!modalList) return; await finishPurchase(modalList, session.user.id, method, receipt); await refresh(session.user.id); setModal(null); }} />
+    <PaymentModal visible={modal === 'payment'} list={modalList} userId={session.user.id} onClose={() => setModal(null)} onConfirm={async (method, receipt: PurchaseReceipt) => {
+      if (!modalList) return;
+      await finishPurchase(modalList, session.user.id, method, receipt);
+      const nextOpen = lists.find(row => row.id !== modalList.id && !row.is_completed && row.domain?.permission !== 'viewer');
+      setSelectedId(nextOpen ? nextOpen.id : await createList(session.user.id, 'Minha Lista de Compras'));
+      await refresh(session.user.id);
+      setModal(null);
+    }} />
     <HistoryModal visible={modal === 'history'} userId={session.user.id} onClose={() => setModal(null)} onRecreate={async record => { await recreatePurchase(record, session.user.id); await refresh(session.user.id); }} />
     {selected && <StorePickerModal visible={modal === 'store'} listId={selected.id} selectedStoreId={selected.store_id ?? undefined} selectedStoreName={selected.store_name ?? undefined} onClose={() => setModal(null)} onLinked={() => refresh(session.user.id)} />}
     <TrashModal
@@ -722,6 +732,15 @@ export default function App() {
       if (!selectedId) return;
       for (const item of result.items) await addScannedItem(session.user.id, selectedId, item);
       await refresh(session.user.id);
+    }} />
+    <ScannerModal visible={receiptAttachOpen && !!selected} userId={session.user.id} purpose="receipt" onClose={() => setReceiptAttachOpen(false)} onConfirm={async result => {
+      if (!selected) return;
+      await attachReceipt(selected, session.user.id, {
+        photoUrl: result.receiptPhoto, qrCode: result.receiptQr, total: result.total,
+        storeName: result.storeName, storeCnpj: result.cnpj,
+      });
+      await refresh(session.user.id);
+      setReceiptAttachOpen(false);
     }} />
     <BatchImportModal
       visible={batchImportOpen}

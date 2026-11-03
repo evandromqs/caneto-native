@@ -42,6 +42,8 @@ type Props = {
   onOpenBatchImport?: () => void;
   onUncheckAll?: () => void | Promise<void>;
   onClearPurchased?: () => void | Promise<void>;
+  onFinish?: () => void;
+  onAttachReceipt?: () => void;
   checkboxStyle?: CheckboxStyle;
   vibrationEnabled?: boolean;
   soundEffectsEnabled?: boolean;
@@ -71,6 +73,8 @@ export function ShoppingListScreen({
   onOpenBatchImport,
   onUncheckAll,
   onClearPurchased,
+  onFinish,
+  onAttachReceipt,
   checkboxStyle = 'circle',
   vibrationEnabled = true,
   soundEffectsEnabled = true,
@@ -122,6 +126,7 @@ export function ShoppingListScreen({
 
   const rows: Row[] = [...pendingRows, ...(purchased.length ? [{ kind: 'cart' as const, count: purchased.length }, ...(cartExpanded ? purchased.map(item => ({ kind: 'item' as const, item })) : [])] : [])];
   const estimatedTotal = list.items.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
+  const purchasedTotal = purchased.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
   const referenceTotal = list.detectedItemsTotal ?? estimatedTotal;
   const pendingReceipt = list.isCompleted && (list.pendingReceipt || (!list.receiptPhotoUrl && !list.receiptQrCode && !list.receiptKey));
   const totalDifference = list.totalSpent !== undefined && Math.abs(list.totalSpent - referenceTotal) >= 0.01;
@@ -236,13 +241,14 @@ export function ShoppingListScreen({
         {list.isCompleted && <View style={styles.completed}>
           <View style={styles.completedTitleRow}><AppText style={styles.completedTitle}>{list.name}</AppText>{!!onReopen && <Pressable accessibilityRole="button" accessibilityLabel="Reabrir lista" style={styles.reopen} onPress={() => void onReopen()}><Ionicons name="refresh-outline" size={16} color={theme.blue} /><AppText style={styles.reopenText}>Reabrir</AppText></Pressable>}</View>
           <AppText tone="caption">{list.storeName || 'Sem local informado'} · {list.completedAt ? new Date(list.completedAt).toLocaleDateString('pt-BR') : 'Data não informada'}</AppText>
+          {!!list.storeAddress && <AppText tone="caption">{list.storeAddress}</AppText>}
           <View style={styles.completedTotals}>
             <View><AppText tone="caption">Itens</AppText><AppText style={styles.completedMetric}>{list.items.filter(item => item.checked).length}/{list.items.length}</AppText></View>
             <View><AppText tone="caption">Pagamento</AppText><AppText style={styles.completedMetric}>{list.paymentMethod ? list.paymentMethod.charAt(0).toUpperCase() + list.paymentMethod.slice(1) : 'Não informado'}</AppText></View>
             <View style={styles.completedTotal}><AppText tone="caption">Total pago</AppText><AppText style={styles.price}>{currency(list.totalSpent ?? referenceTotal)}</AppText></View>
           </View>
         </View>}
-        {pendingReceipt && <View style={styles.pendingReceipt}><Ionicons name="alert-circle-outline" size={24} color={theme.warning} /><View style={styles.flex}><AppText style={styles.pendingTitle}>Nota fiscal pendente</AppText><AppText tone="caption">{totalDifference ? `O total pago (${currency(list.totalSpent ?? 0)}) difere da lista (${currency(referenceTotal)}). Anexe a nota para validar.` : 'Anexe a nota fiscal ou escaneie o recibo para completar a compra.'}</AppText></View></View>}
+        {pendingReceipt && <View style={styles.pendingReceipt}><Ionicons name="alert-circle-outline" size={24} color={theme.warning} /><View style={styles.flex}><AppText style={styles.pendingTitle}>Nota fiscal pendente</AppText><AppText tone="caption">{totalDifference ? `O total pago (${currency(list.totalSpent ?? 0)}) difere da lista (${currency(referenceTotal)}). Anexe a nota para validar.` : 'Anexe a nota fiscal ou escaneie o recibo para completar a compra.'}</AppText>{!!onAttachReceipt && <Pressable style={styles.pendingAction} onPress={onAttachReceipt} accessibilityRole="button" accessibilityLabel="Anexar nota fiscal"><Ionicons name="scan-outline" size={16} color="white" /><Text style={styles.pendingActionText}>Anexar nota ou escanear recibo</Text></Pressable>}</View></View>}
         {list.isCompleted && !!(list.receiptPhotoUrl || list.receiptQrCode) && <View style={styles.receipt}>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: receiptExpanded }} accessibilityLabel="Nota fiscal" onPress={() => setReceiptExpanded(value => !value)} style={styles.receiptHeader}><View style={styles.receiptTitleRow}><Ionicons name="receipt-outline" size={19} color={theme.blue} /><AppText style={styles.receiptTitle}>Nota fiscal</AppText></View><AppText tone="caption">{list.completedAt ? new Date(list.completedAt).toLocaleDateString('pt-BR') : 'Ver comprovante'}</AppText><Ionicons name={receiptExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.muted} /></Pressable>
           {receiptExpanded && <View style={styles.receiptBody}>{!!list.receiptPhotoUrl && <Image source={{ uri: list.receiptPhotoUrl }} style={styles.receiptImage} resizeMode="contain" accessibilityLabel="Foto da nota fiscal" />}{!!list.receiptQrCode && <AppText tone="caption" selectable>QR da nota: {list.receiptQrCode}</AppText>}</View>}
@@ -271,6 +277,13 @@ export function ShoppingListScreen({
               </View>
             )}
           </View>
+        )}
+        {!list.isCompleted && !!onFinish && list.items.length > 0 && (
+          <Pressable style={styles.finishButton} onPress={onFinish} accessibilityRole="button" accessibilityLabel={`Finalizar compra de ${list.name}`}>
+            <Ionicons name="checkmark-done-outline" size={20} color="white" />
+            <Text style={styles.finishText}>Finalizar compra</Text>
+            <Text style={styles.finishTotal}>{currency(purchased.length ? purchasedTotal : estimatedTotal)}</Text>
+          </Pressable>
         )}
       </>}
       ListEmptyComponent={<View style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="bag-handle-outline" size={25} color={theme.blue} /></View><AppText style={styles.emptyTitle}>{list.items.length ? 'Nenhum item encontrado' : list.isCompleted ? 'Nenhum item nesta lista finalizada' : 'Sua lista está vazia'}</AppText><AppText style={styles.emptyDescription}>{list.items.length ? 'Tente outro termo de busca.' : list.isCompleted ? 'Esta compra foi arquivada sem itens.' : 'Digite itens no rodapé, cole uma lista ou toque nas sugestões:'}</AppText>{!readOnly && !list.items.length && <View style={styles.suggestions}>{suggestions.map(suggestion => <Pressable key={suggestion} style={styles.suggestion} onPress={() => add(suggestion)}><Ionicons name="add-circle-outline" size={14} color={theme.blue} /><AppText style={styles.suggestionText}>{suggestion}</AppText></Pressable>)}</View>}</View>}
@@ -398,6 +411,11 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   marketPillText: { color: theme.blue, fontFamily: theme.font.semibold, fontSize: 12 },
   marketPillDanger: { backgroundColor: theme.dangerSoft },
   marketPillDangerText: { color: theme.danger },
+  finishButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.blue, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginTop: 10, marginBottom: 4 },
+  finishText: { color: 'white', fontFamily: theme.font.bold, fontSize: 15, flex: 1 },
+  finishTotal: { color: 'white', fontFamily: theme.font.semibold, fontSize: 14 },
+  pendingAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: theme.blue, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14, marginTop: 10, alignSelf: 'stretch' },
+  pendingActionText: { color: 'white', fontFamily: theme.font.bold, fontSize: 13 },
   completed: { borderBottomWidth: 1, borderBottomColor: theme.border, paddingBottom: 14, gap: 10, marginBottom: 6 }, completedTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, completedTitle: { fontFamily: theme.font.bold, fontSize: 20, flex: 1 }, reopen: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.border, borderRadius: 12 }, reopenText: { color: theme.blue, fontFamily: theme.font.semibold, fontSize: 14 }, completedTotals: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 7 }, completedMetric: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15 }, completedTotal: { alignItems: 'flex-end' },
   pendingReceipt: { borderWidth: 1, borderColor: '#FBBF24', backgroundColor: '#FFFBEB', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 }, pendingTitle: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 15, marginBottom: 3 },
   receipt: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 16, padding: 12, marginBottom: 8 }, receiptHeader: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }, receiptTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 }, receiptTitle: { color: theme.ink, fontFamily: theme.font.bold }, receiptBody: { gap: 10, paddingTop: 12 }, receiptImage: { width: '100%', height: 260, backgroundColor: theme.surfaceMuted, borderRadius: 12 },

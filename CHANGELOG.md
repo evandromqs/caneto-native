@@ -16,13 +16,13 @@ Cada versão abaixo tem escopo fechado, critério de aceite e arquivos esperados
 | Versão | Tipo | Correção | Origem na auditoria | status |
 | --- | --- | --- | --- | --- |
 | 1.1.2 | PATCH | Limpar comprados move todos os itens para a lixeira | P0.1 | Publicado |
-| 1.1.3 | PATCH | Remover amigo usa a tabela `friendships` | P0.4 | Planejado |
-| 1.1.4 | PATCH | Reabrir limpa pendência fiscal; histórico não é sobrescrito | P0.5 | Planejado |
-| 1.1.5 | PATCH | Fila de sync resiste a erro permanente (dead-letter) | P0.7 | Planejado |
-| 1.1.6 | PATCH | Tamanho de fonte, alto contraste e notificações com efeito real | P0.6 | Planejado |
-| 1.1.7 | PATCH | Fotos de produto/etiqueta/recibo no Supabase Storage | P0.2 | Planejado |
-| 1.1.8 | PATCH | Publicação de `store_prices` ao finalizar compra | P0.3 | Planejado |
-| 1.2.0 | MINOR | Compra completa: foto do cupom, anexar depois, loja/histórico completos, CTA de finalizar e nova lista ao concluir | P1 | Planejado |
+| 1.1.3 | PATCH | Remover amigo usa a tabela `friendships` | P0.4 | Pulado |
+| 1.1.4 | PATCH | Reabrir limpa pendência fiscal; histórico não é sobrescrito | P0.5 | Pulado |
+| 1.1.5 | PATCH | Fila de sync resiste a erro permanente (dead-letter) | P0.7 | Pulado |
+| 1.1.6 | PATCH | Tamanho de fonte, alto contraste e notificações com efeito real | P0.6 | Pulado |
+| 1.1.7 | PATCH | Fotos de produto/etiqueta/recibo no Supabase Storage | P0.2 | Pulado |
+| 1.1.8 | PATCH | Publicação de `store_prices` ao finalizar compra | P0.3 | Pulado |
+| 1.2.0 | MINOR | Compra completa: foto do cupom, anexar depois, loja/histórico completos, CTA de finalizar e nova lista ao concluir | P1 | Publicado |
 | 1.2.1 | MINOR | Conta: onboarding com perfil/@/visibilidade/preferências, avatar, troca de senha, excluir conta e tela de upgrade | P1 | Planejado |
 | 1.2.2 | MINOR | Captura: lanterna, trocar câmera, galeria, modo etiqueta, modo lista e auditoria de nota | P1 | Planejado |
 | 1.3.0 | MINOR | Social: presença, ranking com amigos e push real | P1 | Planejado |
@@ -90,9 +90,37 @@ Cada versão abaixo tem escopo fechado, critério de aceite e arquivos esperados
 - Publicar preços confirmados/estimados em `store_prices` ao finalizar compra.
 - Aceite: loja recém-utilizada aparece com catálogo na aba Locais em outro dispositivo.
 
-## v1.2.0 — Compra completa (planejado)
+## v1.2.0 — Compra completa (2026-11-03)
 
-- Foto do comprovante no modo nota, anexar nota depois, dados completos da loja no histórico, CTA de finalizar na lista e criação de nova lista ao concluir.
+**Status:** Publicado
+
+> Salto deliberado sobre 1.1.3–1.1.8. As correções pendentes dessas versões continuam válidas e serão retomadas após esta release, na ordem do mapa acima. O `versionCode` passou de 11 para 12.
+
+### Correções e melhorias
+
+- **Foto do comprovante no modo nota.** O passo 2 agora mostra a miniatura da foto capturada, permite remover e ler outra nota sem sair do fluxo, e exibe local/CNPJ identificados.
+- **Anexar nota depois.** Lista finalizada com `pendingReceipt` ganhou o botão “Anexar nota ou escanear recibo”, que valida o comprovante e atualiza lista + histórico sem refazer a compra.
+- **Dados completos da loja no histórico.** `loadHistory` passou a trazer endereço, CNPJ, forma de pagamento, pendência fiscal, comprovante e total detectado. O histórico mostra esses dados, prévia dos itens e o comprovante expansível.
+- **CTA de finalizar na lista.** A área de compras exibe “Finalizar compra” com o total dos itens comprados (ou o estimado), abrindo o fluxo de 3 passos sem passar pelo menu.
+- **Nova lista ao concluir.** Depois de finalizar, o app abre a próxima lista em aberto; se não existir, cria “Minha Lista de Compras” e já entra nela.
+- **Recriar compra preserva categoria.** Listas recriadas a partir do histórico mantêm a categoria original dos itens.
+
+### Arquivos
+
+- `src/features/purchases/repository.ts`: `attachReceipt`, histórico completo, persistência de endereço/CNPJ da loja, categoria na recriação.
+- `src/features/purchases/PurchaseModals.tsx`: preview/remoção do comprovante, histórico expandido.
+- `src/features/cart/ShoppingListScreen.tsx`: CTA de finalizar, ação de anexar nota, endereço na lista concluída.
+- `App.tsx`: wiring do anexo tardio e troca/criação de lista após finalizar.
+
+### Critério de aceite
+
+- Finalizar sem nota mantém a pendência visível e permite anexar o comprovante depois.
+- Foto capturada no modo nota aparece no passo 2 e no histórico.
+- Histórico exibe loja, endereço, CNPJ, pagamento e itens da compra.
+- “Finalizar compra” aparece na lista e abre o fluxo de 3 passos.
+- Ao concluir, o usuário cai na próxima lista aberta ou em uma lista nova criada automaticamente.
+
+---
 
 ## v1.2.1 — Conta e plano (planejado)
 
