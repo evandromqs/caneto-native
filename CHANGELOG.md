@@ -23,7 +23,7 @@ Cada versão abaixo tem escopo fechado, critério de aceite e arquivos esperados
 | 1.1.7 | PATCH | Fotos de produto/etiqueta/recibo no Supabase Storage | P0.2 | Pulado |
 | 1.1.8 | PATCH | Publicação de `store_prices` ao finalizar compra | P0.3 | Pulado |
 | 1.2.0 | MINOR | Compra completa: foto do cupom, anexar depois, loja/histórico completos, CTA de finalizar e nova lista ao concluir | P1 | Publicado |
-| 1.2.1 | PATCH | Corrige encerramento instantâneo ao abrir: remove `expo-av` (sem versão para o SDK 57) e adia módulos nativos | Crash no start | Em validação |
+| 1.2.1 | PATCH | Corrige encerramento instantâneo ao abrir: remove `expo-av` (sem versão para o SDK 57) e adia módulos nativos | Crash no start | Publicado |
 | 1.2.2 | MINOR | Conta: onboarding com perfil/@/visibilidade/preferências, avatar, troca de senha, excluir conta e tela de upgrade | P1 | Planejado |
 | 1.2.3 | MINOR | Captura: lanterna, trocar câmera, galeria, modo etiqueta, modo lista e auditoria de nota | P1 | Planejado |
 | 1.3.0 | MINOR | Social: presença, ranking com amigos e push real | P1 | Planejado |
@@ -125,7 +125,9 @@ Cada versão abaixo tem escopo fechado, critério de aceite e arquivos esperados
 
 ## v1.2.1 — Correção do encerramento instantâneo (2026-11-03)
 
-**Status:** Em validação
+**Status:** Publicado
+
+> Causa confirmada no aparelho (Galaxy A51, Android 13) via `adb logcat`: `java.lang.UnsatisfiedLinkError` ao carregar `libexpo-av.so` (`cannot locate symbol ...facebook::jsi::Value::asObject`), a partir de `expo.modules.av.AVManager`. O pacote era registrado na criação da instância React e encerrava o processo antes da primeira tela. O APK 1.2.1 foi instalado e aberto no mesmo aparelho sem crash.
 
 ### Correções
 
