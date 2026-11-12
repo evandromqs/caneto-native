@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Modal,
   Pressable,
   ScrollView,
@@ -24,6 +25,15 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
   const [downloadProgress, setDownloadProgress] = useState<ApkDownloadProgress | null>(null);
   const [downloadStatus, setDownloadStatus] = useState('');
   const [downloadError, setDownloadError] = useState('');
+  const [progressAnimation] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    Animated.timing(progressAnimation, {
+      toValue: Math.max(0, Math.min(downloadProgress?.percentage ?? 0, 100)),
+      duration: 280,
+      useNativeDriver: false,
+    }).start();
+  }, [downloadProgress?.percentage, progressAnimation]);
 
   if (!visible || !updateInfo) return null;
 
@@ -31,6 +41,7 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
     if (downloading) return;
     setDownloadError('');
     setDownloadProgress(null);
+    progressAnimation.setValue(0);
     setDownloadStatus('');
     onClose();
   };
@@ -47,7 +58,9 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
       setDownloadStatus('Abrindo instalador nativo...');
       setTimeout(() => {
         setDownloading(false);
-        handleClose();
+        setDownloadProgress(null);
+        progressAnimation.setValue(0);
+        onClose();
       }, 1200);
     } catch (err: unknown) {
       console.warn('Erro no download ou instalador nativo:', err);
@@ -74,10 +87,10 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
       onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Header Icon */}
           <View style={styles.iconCircle}>
-            <Ionicons name="cloud-download-outline" size={32} color={theme.blue} />
+            <Ionicons name="cloud-download-outline" size={23} color={theme.blue} />
           </View>
 
           {/* Titles */}
@@ -103,9 +116,9 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
           {updateInfo.releaseNotes ? (
             <View style={styles.notesBox}>
               <Text style={styles.notesTitle}>O que há de novo:</Text>
-              <ScrollView style={styles.notesScroll}>
+              <View>
                 <Text style={styles.notesText}>{updateInfo.releaseNotes}</Text>
-              </ScrollView>
+              </View>
             </View>
           ) : null}
 
@@ -113,10 +126,10 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
           {downloading && (
             <View style={styles.progressSection}>
               <View style={styles.progressTrack}>
-                <View
+                <Animated.View
                   style={[
                     styles.progressBarFill,
-                    { width: `${Math.max(6, downloadProgress?.percentage ?? 6)}%` },
+                    { width: progressAnimation.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) },
                   ]}
                 />
               </View>
@@ -132,12 +145,6 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
               </View>
               <Text style={styles.statusText}>{downloadStatus}</Text>
             </View>
-          )}
-
-          {!downloading && (
-            <Text style={styles.helperText}>
-              O Caneto baixa e executa o instalador do Android diretamente pelo app.
-            </Text>
           )}
 
           {!isNewerVersion(updateInfo.currentVersion, '1.0.5') ? (
@@ -187,7 +194,7 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
               </Pressable>
             )}
           </View>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -203,10 +210,13 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   },
   container: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 400,
+    maxHeight: '88%',
     backgroundColor: theme.surface,
-    borderRadius: 24,
-    padding: 22,
+    borderRadius: 20,
+  },
+  content: {
+    padding: 18,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -215,16 +225,16 @@ const styles = createThemedStyles(theme => StyleSheet.create({
     elevation: 10,
   },
   iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: theme.blueSoft,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 21,
+    fontSize: 18,
     fontFamily: theme.font.extrabold,
     color: theme.ink,
     textAlign: 'center',
@@ -235,27 +245,19 @@ const styles = createThemedStyles(theme => StyleSheet.create({
     fontFamily: theme.font.regular,
     color: theme.muted,
     textAlign: 'center',
-    marginBottom: 14,
+    marginBottom: 10,
     lineHeight: 20,
-  },
-  helperText: {
-    fontSize: 12,
-    fontFamily: theme.font.regular,
-    color: theme.muted,
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 18,
   },
   versionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 10,
   },
   versionBadge: {
     flexDirection: 'row',
     backgroundColor: theme.surfaceMuted,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 12,
   },
@@ -300,9 +302,6 @@ const styles = createThemedStyles(theme => StyleSheet.create({
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  notesScroll: {
-    maxHeight: 85,
   },
   notesText: {
     fontSize: 13,

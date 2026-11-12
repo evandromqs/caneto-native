@@ -34,7 +34,7 @@ const categoryNames: Record<string, CanetoIconName> = {
   hortifruti: 'produce', acougue: 'meat', butcher: 'meat', frios: 'dairy',
   padaria: 'bakery', mercearia: 'package', bebidas: 'drinks', beverages: 'drinks',
   limpeza: 'cleaning', higiene: 'hygiene', congelados: 'frozen', petshop: 'pet',
-  outros: 'tag', supermarket: 'cart', convenience: 'store',
+  outros: 'tag', other: 'tag', supermarket: 'cart', convenience: 'store',
 };
 
 export function CanetoIcon({ name, size = 20, color = '#0F172A' }: {
@@ -42,7 +42,7 @@ export function CanetoIcon({ name, size = 20, color = '#0F172A' }: {
   size?: number;
   color?: string;
 }) {
-  const icon = categoryNames[name] ?? (name in paths ? name as CanetoIconName : 'store');
+  const icon = categoryNames[name] ?? (name in paths ? name as CanetoIconName : 'tag');
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path d={paths[icon]} stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>;
