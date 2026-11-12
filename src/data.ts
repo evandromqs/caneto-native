@@ -1,7 +1,7 @@
 import { canetoData } from './core/data/supabaseAdapter';
 import type { ShoppingItem, ShoppingList } from './core/models/caneto';
 import { readListCache, writeListCache } from './core/sync/listCache';
-import { bindSyncUser, currentSyncUserId, flushOutbox, pendingOps, syncWrite } from './core/sync/outbox';
+import { currentSyncUserId, flushOutbox, pendingOps, syncWrite } from './core/sync/outbox';
 import { generateUUID } from './ui/error';
 import { parseQuickItemInput } from './core/categories';
 import { createListPayload } from './core/data/payloads';
@@ -80,8 +80,8 @@ export function patchLists(mutator: (lists: List[]) => List[]) {
   writeListCache(userId, mutator(current).map(syncDomain));
 }
 
-function mergeLists(remote: List[], local: List[]): List[] {
-  const pending = pendingOps().filter(op => op.userId === currentSyncUserId());
+function mergeLists(remote: List[], local: List[], userId: string): List[] {
+  const pending = pendingOps().filter(op => op.userId === userId);
   const deletedLists = new Set(pending.filter(op => op.table === 'lists' && op.action === 'delete').map(op => op.entityId));
   const deletedItems = new Set(pending.filter(op => op.table === 'items' && op.action === 'delete').map(op => op.entityId));
   const byId = new Map<string, List>();
@@ -125,9 +125,10 @@ function refreshRemoteLists(userId: string): Promise<List[]> {
   const active = remoteLoads.get(userId);
   if (active) return active;
   const task = canetoData.lists(userId).then(domainLists => {
+    if (currentSyncUserId() !== userId) return readListCache<List>(userId) ?? [];
     const remote = domainLists.map(fromDomain);
     const local = readListCache<List>(userId) ?? [];
-    const merged = pendingOps().some(op => op.userId === userId) ? mergeLists(remote, local) : remote;
+    const merged = pendingOps().some(op => op.userId === userId) ? mergeLists(remote, local, userId) : remote;
     writeListCache(userId, merged);
     return merged;
   }).finally(() => { remoteLoads.delete(userId); });
@@ -136,7 +137,7 @@ function refreshRemoteLists(userId: string): Promise<List[]> {
 }
 
 export async function loadLists(userId: string): Promise<List[]> {
-  bindSyncUser(userId);
+  if (currentSyncUserId() !== userId) return [];
   void flushOutbox().catch(() => undefined);
   const local = readListCache<List>(userId);
   if (local !== null) {

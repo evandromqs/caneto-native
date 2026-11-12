@@ -60,6 +60,7 @@ function emit() {
 
 export function bindSyncUser(userId: string) {
   boundUserId = userId;
+  emit();
 }
 
 export function currentSyncUserId() {
@@ -134,9 +135,11 @@ export async function flushOutbox(): Promise<void> {
     if (!online) return;
     // Always read the current head: writes added during a flush must never be
     // replaced by an older snapshot of the queue.
-    while (readOps().length) {
-      const op = readOps().find(row => !boundUserId || row.userId === boundUserId);
+    while (boundUserId && readOps().length) {
+      const op = readOps().find(row => row.userId === boundUserId);
       if (!op) break;
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      if (authError || session?.user.id !== op.userId || boundUserId !== op.userId) break;
       try {
         await applyOp(op);
       } catch (error) {
@@ -166,10 +169,12 @@ export async function flushOutbox(): Promise<void> {
 }
 
 export async function syncWrite(input: Omit<WriteOp, 'id' | 'createdAt' | 'attempts' | 'userId'> & { userId?: string }): Promise<'sent' | 'queued'> {
+  const userId = input.userId || boundUserId;
+  if (!userId) throw new Error('Entre na sua conta antes de sincronizar alterações.');
   const op: WriteOp = {
     ...input,
     id: generateUUID(),
-    userId: input.userId || boundUserId,
+    userId,
     createdAt: Date.now(),
     attempts: 0,
   };

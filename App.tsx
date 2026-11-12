@@ -52,7 +52,7 @@ import { getErrorMessage } from './src/ui/error';
 import { checkAndApplyOnlineUpdate, checkAppUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
 import { ScannerModal } from './src/features/capture/ScannerModal';
-import { bindSyncUser, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
+import { bindSyncUser, currentSyncUserId, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
 import { readListCache, subscribeListCache } from './src/core/sync/listCache';
 import { subscribeShoppingChanges } from './src/core/sync/realtime';
 import { LaunchSplash } from './src/features/launch/LaunchSplash';
@@ -151,7 +151,11 @@ export default function App() {
     });
   }, [tab, tabOpacity, tabTranslateX]);
 
-  const refresh = useCallback(async (userId: string) => setLists(await loadLists(userId)), []);
+  const refresh = useCallback(async (userId: string) => {
+    if (currentSyncUserId() !== userId) return;
+    const next = await loadLists(userId);
+    if (currentSyncUserId() === userId) setLists(next);
+  }, []);
   const addSuggestedProduct = useCallback(async (product: ProductSuggestion) => {
     if (!session || !selectedId) return;
     await addScannedItem(session.user.id, selectedId, {
@@ -183,13 +187,14 @@ export default function App() {
   useEffect(() => {
     const fallbackTimer = setTimeout(() => setStarting(false), 3000);
     supabase.auth.getSession()
-      .then(({ data, error }) => { if (error) throw error; setSession(data.session); })
+      .then(({ data, error }) => { if (error) throw error; bindSyncUser(data.session?.user.id ?? ''); setSession(data.session); })
       .catch(errorMessage)
       .finally(() => {
         clearTimeout(fallbackTimer);
         setStarting(false);
       });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+      bindSyncUser(next?.user.id ?? '');
       setSession(next);
       if (!next) { setLists([]); setProfile(null); setPurchases([]); setSocialData(null); setSelectedId(null); setTab('lists'); }
     });
@@ -610,7 +615,12 @@ export default function App() {
         }}
         onOpenProfile={() => setModal('profile')}
         onOpenHistory={() => setStatsOpen(true)}
-        onSignOut={() => { void supabase.auth.signOut(); }}
+        onSignOut={() => {
+          bindSyncUser('');
+          void supabase.auth.signOut().then(({ error }) => {
+            if (error) { bindSyncUser(session.user.id); errorMessage(error); }
+          });
+        }}
       />}
     </Animated.View>
     <View style={[styles.dockContainer, { paddingBottom: Math.max(insets.bottom, 10) }]} pointerEvents="box-none">

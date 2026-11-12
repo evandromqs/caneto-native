@@ -12,8 +12,10 @@ global.localStorage = {
 let nextId = 0;
 let releaseFirst;
 let failNext = false;
+let activeUser = 'user-1';
 const calls = [];
 const supabase = {
+  auth: { getSession: async () => ({ data: { session: activeUser ? { user: { id: activeUser } } : null }, error: null }) },
   from(table) {
     return {
       async insert(payload) {
@@ -70,5 +72,21 @@ const waitFor = async condition => {
   failNext = false;
   await flushOutbox();
   assert.equal(pendingOps().length, 0);
+  activeUser = '';
+  bindSyncUser('');
+  await syncWrite({ table: 'items', action: 'insert', entityId: 'old', match: { id: 'old' }, payload: { id: 'old' }, userId: 'user-1' });
+  await flushOutbox();
+  assert.equal(pendingOps().length, 1, 'signed-out writes remain queued for their owner');
+  activeUser = 'user-2';
+  bindSyncUser('user-2');
+  await flushOutbox();
+  assert.equal(pendingOps().length, 1, 'another account cannot flush the previous account queue');
+  await syncWrite({ table: 'items', action: 'insert', entityId: 'new', match: { id: 'new' }, payload: { id: 'new' } });
+  await waitFor(() => pendingOps().length === 1);
+  assert.equal(calls.at(-1).payload.id, 'new');
+  activeUser = 'user-1';
+  bindSyncUser('user-1');
+  await flushOutbox();
+  assert.equal(pendingOps().length, 0, 'owner can resume its queued writes');
   process.stdout.write('Local-first synchronization checks passed.\n');
 })().catch(error => { console.error(error); process.exitCode = 1; });
