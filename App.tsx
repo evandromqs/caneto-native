@@ -49,6 +49,8 @@ import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, movePurchasedItemsToTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
+import { triggerHaptic } from './src/core/device/haptics';
+import { playSound } from './src/core/device/sounds';
 import { checkAndApplyOnlineUpdate, checkAppUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
 import { ScannerModal } from './src/features/capture/ScannerModal';
@@ -569,7 +571,7 @@ export default function App() {
         onReopenList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => setListCompleted(legacy, false), false); }}
         onRenameList={async (list, name) => mutate(() => renameList(list.id, name, list.storeName ?? ''), false)}
         onJoinList={() => setModal('join')}
-        onScanList={() => setModal('scan')}
+        onScanList={() => setScannerOpen(true)}
         onRefresh={() => refresh(session.user.id)}
       />}
       {tab === 'stores' && <StoreExplorer savedCatalog={lists.reduce<Record<string, Item[]>>((catalog, list) => {
@@ -805,12 +807,17 @@ export default function App() {
               if (legacyItem) {
                 await saveItemChanges(legacyItem, {
                   name: scanned.name || legacyItem.name,
+                  quantity: legacyItem.quantity,
+                  unit: legacyItem.unit,
                   price: scanned.price ?? legacyItem.price,
+                  category_id: legacyItem.category_id,
                   ean: scanned.ean || legacyItem.ean,
                   brand: scanned.brand || legacyItem.brand,
-                  photoUrl: scanned.photoUrl || legacyItem.photo_url,
-                  checked: true,
+                  photo_url: scanned.photoUrl || legacyItem.photo_url,
                 });
+                if (!legacyItem.checked) {
+                  await setItemChecked(legacyItem, true);
+                }
               }
             });
             void playSound('check', preferences.soundEffects);
