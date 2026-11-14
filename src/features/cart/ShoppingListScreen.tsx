@@ -30,6 +30,7 @@ type Props = {
   onAdd: (name: string) => void | Promise<void>;
   onAddProduct?: (product: ProductSuggestion) => void | Promise<void>;
   onScan?: () => void;
+  onScanItem?: (item: ShoppingItem) => void;
   onRefresh: () => Promise<void>;
   showCategoryHeaders?: boolean;
   sortByCategory?: boolean;
@@ -61,6 +62,7 @@ export function ShoppingListScreen({
   onAdd,
   onAddProduct,
   onScan,
+  onScanItem,
   onRefresh,
   showCategoryHeaders = false,
   sortByCategory = false,
@@ -192,42 +194,28 @@ export function ShoppingListScreen({
         onDismiss={onDismissDeleteToast}
       />
     )}
-    <View style={styles.actions}>
-      <Pressable style={styles.round} onPress={onBack} accessibilityRole="button" accessibilityLabel="Voltar para listas"><Ionicons name="arrow-back" size={22} color={theme.blue} /></Pressable>
-      <View style={styles.flex} />
-      {onOpenBatchImport && !readOnly && (
-        <Pressable
-          style={styles.round}
-          onPress={onOpenBatchImport}
-          accessibilityRole="button"
-          accessibilityLabel="Colar lista completa"
-        >
-          <Ionicons name="clipboard-outline" size={20} color={theme.blue} />
-        </Pressable>
-      )}
-      {list.permission === 'owner' && <Pressable style={styles.round} onPress={onSelectStore} accessibilityRole="button" accessibilityLabel="Selecionar local da lista"><CanetoIcon name="store" size={21} color={theme.blue} /></Pressable>}
-      {onOpenTrash && !list.isCompleted && list.permission !== 'viewer' && (
-        <Pressable
-          style={styles.round}
-          onPress={onOpenTrash}
-          accessibilityRole="button"
-          accessibilityLabel={`Lixeira da lista${trashCount ? `, ${trashCount} itens` : ''}`}
-        >
-          <Ionicons name="trash-outline" size={20} color={theme.blue} />
-          {!!trashCount && trashCount > 0 && (
-            <View style={styles.trashBadge}>
-              <Text style={styles.trashBadgeText}>{trashCount > 9 ? '9+' : String(trashCount)}</Text>
-            </View>
-          )}
-        </Pressable>
-      )}
-      <Pressable style={styles.round} onPress={onOptions} accessibilityRole="button" accessibilityLabel="Opções da lista"><Ionicons name="ellipsis-vertical" size={21} color={theme.blue} /></Pressable>
+    {/* Header alinhado idêntico ao PWA */}
+    <View style={styles.header}>
+      <Pressable style={styles.headerIconButton} onPress={onBack} accessibilityRole="button" accessibilityLabel="Voltar para listas">
+        <Ionicons name="arrow-back" size={20} color={theme.ink} />
+      </Pressable>
+
+      <Pressable
+        style={styles.storePill}
+        onPress={list.permission === 'owner' ? onSelectStore : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={list.storeName ? `Local vinculado: ${list.storeName}` : 'Vincular mercado à lista'}
+      >
+        <CanetoIcon name="store" size={16} color={theme.blue} />
+        <Text style={styles.storePillText} numberOfLines={1}>
+          {list.storeName ? list.storeName : '+ Vincular mercado'}
+        </Text>
+      </Pressable>
+
+      <Pressable style={styles.headerIconButton} onPress={onOptions} accessibilityRole="button" accessibilityLabel="Opções da lista">
+        <Ionicons name="ellipsis-vertical" size={20} color={theme.ink} />
+      </Pressable>
     </View>
-    <Pressable style={styles.storeHeader} onPress={list.permission === 'owner' ? onSelectStore : undefined} accessibilityRole="button" accessibilityLabel={list.storeName ? `Local vinculado: ${list.storeName}` : 'Vincular local à lista'}>
-      <CanetoIcon name="store" size={19} color={theme.blue} />
-      <Text style={styles.storeHeaderText} numberOfLines={1}>{list.storeName || 'Vincular local'}</Text>
-      {list.permission === 'owner' && <Ionicons name="chevron-down" size={17} color={theme.blue} />}
-    </Pressable>
 
     <FlatList
       data={rows}
@@ -237,7 +225,7 @@ export function ShoppingListScreen({
       onRefresh={async () => { setRefreshing(true); try { await onRefresh(); } catch (error) { Alert.alert('Não foi possível atualizar', getErrorMessage(error)); } finally { setRefreshing(false); } }}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={<>
-        {!list.isCompleted && <View style={styles.search}><Ionicons name="search-outline" size={18} color={theme.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="Filtrar itens na lista..." placeholderTextColor={theme.muted} style={styles.searchInput} accessibilityLabel="Filtrar itens na lista" />{!!search && <Pressable onPress={() => setSearch('')} accessibilityLabel="Limpar filtro"><Ionicons name="close" size={18} color={theme.muted} /></Pressable>}</View>}
+        {list.items.length > 0 && !list.isCompleted && <View style={styles.search}><Ionicons name="search-outline" size={18} color={theme.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="Filtrar itens na lista..." placeholderTextColor={theme.muted} style={styles.searchInput} accessibilityLabel="Filtrar itens na lista" />{!!search && <Pressable onPress={() => setSearch('')} accessibilityLabel="Limpar filtro"><Ionicons name="close" size={18} color={theme.muted} /></Pressable>}</View>}
         {list.isCompleted && <View style={styles.completed}>
           <View style={styles.completedTitleRow}><AppText style={styles.completedTitle}>{list.name}</AppText>{!!onReopen && <Pressable accessibilityRole="button" accessibilityLabel="Reabrir lista" style={styles.reopen} onPress={() => void onReopen()}><Ionicons name="refresh-outline" size={16} color={theme.blue} /><AppText style={styles.reopenText}>Reabrir</AppText></Pressable>}</View>
           <AppText tone="caption">{list.storeName || 'Sem local informado'} · {list.completedAt ? new Date(list.completedAt).toLocaleDateString('pt-BR') : 'Data não informada'}</AppText>
@@ -253,7 +241,7 @@ export function ShoppingListScreen({
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: receiptExpanded }} accessibilityLabel="Nota fiscal" onPress={() => setReceiptExpanded(value => !value)} style={styles.receiptHeader}><View style={styles.receiptTitleRow}><Ionicons name="receipt-outline" size={19} color={theme.blue} /><AppText style={styles.receiptTitle}>Nota fiscal</AppText></View><AppText tone="caption">{list.completedAt ? new Date(list.completedAt).toLocaleDateString('pt-BR') : 'Ver comprovante'}</AppText><Ionicons name={receiptExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={theme.muted} /></Pressable>
           {receiptExpanded && <View style={styles.receiptBody}>{!!list.receiptPhotoUrl && <Image source={{ uri: list.receiptPhotoUrl }} style={styles.receiptImage} resizeMode="contain" accessibilityLabel="Foto da nota fiscal" />}{!!list.receiptQrCode && <AppText tone="caption" selectable>QR da nota: {list.receiptQrCode}</AppText>}</View>}
         </View>}
-        {!list.isCompleted && (
+        {!list.isCompleted && list.items.length > 0 && (
           <View style={styles.marketBar}>
             <View style={styles.marketBarCounts}>
               <Text style={styles.marketCountText}>
@@ -286,7 +274,32 @@ export function ShoppingListScreen({
           </Pressable>
         )}
       </>}
-      ListEmptyComponent={<View style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="bag-handle-outline" size={25} color={theme.blue} /></View><AppText style={styles.emptyTitle}>{list.items.length ? 'Nenhum item encontrado' : list.isCompleted ? 'Nenhum item nesta lista finalizada' : 'Sua lista está vazia'}</AppText><AppText style={styles.emptyDescription}>{list.items.length ? 'Tente outro termo de busca.' : list.isCompleted ? 'Esta compra foi arquivada sem itens.' : 'Digite itens no rodapé, cole uma lista ou toque nas sugestões:'}</AppText>{!readOnly && !list.items.length && <View style={styles.suggestions}>{suggestions.map(suggestion => <Pressable key={suggestion} style={styles.suggestion} onPress={() => add(suggestion)}><Ionicons name="add-circle-outline" size={14} color={theme.blue} /><AppText style={styles.suggestionText}>{suggestion}</AppText></Pressable>)}</View>}</View>}
+      ListEmptyComponent={<View style={styles.empty}>
+        <View style={styles.emptyIcon}>
+          <CanetoIcon name="cart" size={26} color={theme.blue} />
+        </View>
+        <AppText style={styles.emptyTitle}>
+          {list.items.length ? 'Nenhum item encontrado' : list.isCompleted ? 'Nenhum item nesta lista finalizada' : 'Sua lista está vazia'}
+        </AppText>
+        <AppText style={styles.emptyDescription}>
+          {list.items.length ? 'Tente outro termo de busca.' : list.isCompleted ? 'Esta compra foi arquivada sem itens.' : 'Digite itens no rodapé, use o microfone ou clique nas sugestões:'}
+        </AppText>
+        {!readOnly && !list.items.length && (
+          <View style={styles.suggestions}>
+            {suggestions.map(suggestion => (
+              <Pressable
+                key={suggestion}
+                style={styles.suggestion}
+                onPress={() => add(suggestion)}
+                accessibilityRole="button"
+                accessibilityLabel={`Adicionar ${suggestion}`}
+              >
+                <AppText style={styles.suggestionText}>{suggestion}</AppText>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>}
       renderItem={({ item }) => item.kind === 'cart'
         ? <Pressable style={styles.cartHeading} onPress={() => setCartExpanded(value => !value)} accessibilityRole="button" accessibilityState={{ expanded: cartExpanded }}><View style={styles.cartLabel}><CanetoIcon name="cart" size={20} color={theme.blueLight} /><AppText style={styles.cartTitle}>No carrinho ({item.count})</AppText></View><AppText style={styles.expand}>{cartExpanded ? 'Recolher' : 'Expandir'}</AppText></Pressable>
         : item.kind === 'category' ? <CategoryHeader id={item.id} items={item.items} collapsed={!!collapsedCategories[item.id]} onToggle={() => setCollapsedCategories(current => ({ ...current, [item.id]: !current[item.id] }))} />
@@ -297,6 +310,7 @@ export function ShoppingListScreen({
             checkboxStyle={checkboxStyle}
             onToggle={() => void handleToggle(item.item)}
             onEdit={() => onEdit(item.item)}
+            onScanItem={onScanItem ? () => onScanItem(item.item) : undefined}
           />}
     />
     {!readOnly && !!newItem.trim() && !!onAddProduct && (searchingProducts || productSuggestions.length > 0) && <View style={styles.predictions}>
@@ -314,7 +328,66 @@ export function ShoppingListScreen({
         <Ionicons name="add-circle" size={22} color={theme.blue} />
       </Pressable>)}
     </View>}
-    {!readOnly && <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12) }]}>{!!onScan && <Pressable style={styles.scanButton} onPress={onScan} accessibilityLabel="Ler código, produto ou nota"><Ionicons name="scan-outline" size={22} color={theme.blue} /></Pressable>}<TextInput style={styles.composerInput} value={newItem} onChangeText={value => { setNewItem(value); setProductSuggestions([]); }} placeholder="Adicionar produto (ex: 2kg de maçã)" placeholderTextColor={theme.muted} onSubmitEditing={() => add()} returnKeyType="done" /><Pressable style={styles.addButton} onPress={() => add()} disabled={!newItem.trim() || busy} accessibilityLabel="Adicionar produto"><CanetoIcon name="plus" size={22} color="white" /></Pressable></View>}
+    {!readOnly && (
+      <View style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <View style={styles.composerCard}>
+          <TextInput
+            style={styles.composerInput}
+            value={newItem}
+            onChangeText={value => { setNewItem(value); setProductSuggestions([]); }}
+            placeholder="Digite itens (ex: 2 kg banana)"
+            placeholderTextColor={theme.muted}
+            onSubmitEditing={() => add()}
+            returnKeyType="done"
+          />
+
+          {newItem.length > 0 && (
+            <Pressable
+              style={styles.clearButton}
+              onPress={() => {
+                setNewItem('');
+                setProductSuggestions([]);
+              }}
+              accessibilityLabel="Limpar texto do item"
+              hitSlop={8}
+            >
+              <Ionicons name="close-circle" size={19} color={theme.muted} />
+            </Pressable>
+          )}
+
+          <View style={styles.composerActions}>
+            {!!onScan && (
+              <Pressable
+                style={styles.composerButton}
+                onPress={onScan}
+                accessibilityLabel="Leitor em tempo real (produtos, textos e códigos EAN)"
+              >
+                <Ionicons name="camera-outline" size={20} color={theme.ink} />
+              </Pressable>
+            )}
+
+            {newItem.trim() ? (
+              <Pressable
+                style={[styles.composerButton, styles.composerSubmitActive]}
+                onPress={() => add()}
+                disabled={busy}
+                accessibilityLabel="Adicionar à lista"
+              >
+                <Ionicons name="arrow-up" size={20} color="white" />
+              </Pressable>
+            ) : (
+              <Pressable
+                style={styles.composerButton}
+                onPress={() => Alert.alert('Áudio / Voz', 'Para ditar itens por voz, use a digitação por voz do teclado ou conecte o serviço de reconhecimento.')}
+                accessibilityLabel="Ditar item por voz (Áudio)"
+              >
+                <Ionicons name="mic-outline" size={20} color={theme.ink} />
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </View>
+    )}
   </KeyboardAvoidingView>;
 }
 
@@ -338,6 +411,7 @@ function ItemCard({
   checkboxStyle = 'circle',
   onToggle,
   onEdit,
+  onScanItem,
 }: {
   item: ShoppingItem;
   readOnly: boolean;
@@ -345,6 +419,7 @@ function ItemCard({
   checkboxStyle?: CheckboxStyle;
   onToggle: () => void;
   onEdit: () => void;
+  onScanItem?: () => void;
 }) {
   const [photoFailed, setPhotoFailed] = useState(false);
   const [labelOpen, setLabelOpen] = useState(false);
@@ -355,6 +430,21 @@ function ItemCard({
     <View style={styles.itemTop}>
       <View style={styles.thumbnail}>{item.photoUrl && !photoFailed ? <Image source={{ uri: item.photoUrl }} style={styles.photo} onError={() => setPhotoFailed(true)} /> : <CanetoIcon name={item.categoryId} size={24} color={theme.ink} />}</View>
       <View style={styles.flex} />
+
+      {!readOnly && onScanItem && (
+        <Pressable
+          style={styles.itemScanButton}
+          onPress={event => {
+            event.stopPropagation();
+            onScanItem();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Escanear produto para auto-preencher e marcar: ${item.name}`}
+        >
+          <Ionicons name="camera-outline" size={16} color={theme.blue} />
+        </Pressable>
+      )}
+
       {checkboxStyle === 'switch' ? (
         <Pressable
           style={[styles.switchTrack, item.checked && styles.switchTrackChecked]}
@@ -387,9 +477,10 @@ function ItemCard({
 
 const styles = createThemedStyles(theme => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.background }, flex: { flex: 1 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 5 }, round: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  storeHeader: { minHeight: 42, marginHorizontal: 16, marginBottom: 8, borderRadius: 14, backgroundColor: theme.blueSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 },
-  storeHeaderText: { maxWidth: '78%', color: theme.blue, fontFamily: theme.font.bold, fontSize: 15, textAlign: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border },
+  headerIconButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border },
+  storePill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginHorizontal: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: theme.blueSoft },
+  storePillText: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 14, maxWidth: '85%' },
   predictions: { marginHorizontal: 12, marginBottom: 5, padding: 9, backgroundColor: theme.surface, borderRadius: 15, borderWidth: 1, borderColor: theme.border, maxHeight: 232, gap: 5, elevation: 5 },
   predictionsTitle: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 12, marginBottom: 2 },
   prediction: { minHeight: 47, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, backgroundColor: theme.surfaceMuted, padding: 5 },
@@ -419,14 +510,29 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   completed: { borderBottomWidth: 1, borderBottomColor: theme.border, paddingBottom: 14, gap: 10, marginBottom: 6 }, completedTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, completedTitle: { fontFamily: theme.font.bold, fontSize: 20, flex: 1 }, reopen: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.border, borderRadius: 12 }, reopenText: { color: theme.blue, fontFamily: theme.font.semibold, fontSize: 14 }, completedTotals: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 7 }, completedMetric: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15 }, completedTotal: { alignItems: 'flex-end' },
   pendingReceipt: { borderWidth: 1, borderColor: '#FBBF24', backgroundColor: '#FFFBEB', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 }, pendingTitle: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 15, marginBottom: 3 },
   receipt: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 16, padding: 12, marginBottom: 8 }, receiptHeader: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 }, receiptTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 }, receiptTitle: { color: theme.ink, fontFamily: theme.font.bold }, receiptBody: { gap: 10, paddingTop: 12 }, receiptImage: { width: '100%', height: 260, backgroundColor: theme.surfaceMuted, borderRadius: 12 },
-  empty: { alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.borderStrong, borderRadius: 16, padding: 24, gap: 8, marginTop: 14 }, emptyIcon: { width: 48, height: 48, backgroundColor: theme.blueSoft, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { fontFamily: theme.font.bold, color: theme.ink, fontSize: 16, textAlign: 'center' }, emptyDescription: { color: theme.muted, fontSize: 15, textAlign: 'center' }, suggestions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 5 }, suggestion: { flexDirection: 'row', gap: 4, alignItems: 'center', borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 }, suggestionText: { color: theme.muted, fontFamily: theme.font.semibold, fontSize: 13 },
+  empty: { alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.borderStrong, borderRadius: 20, padding: 24, gap: 10, marginTop: 14 },
+  emptyIcon: { width: 52, height: 52, backgroundColor: theme.blueSoft, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontFamily: theme.font.bold, color: theme.ink, fontSize: 17, textAlign: 'center' },
+  emptyDescription: { color: theme.muted, fontSize: 14, textAlign: 'center', lineHeight: 20, maxWidth: '90%' },
+  suggestions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 8 },
+  suggestion: { borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surfaceMuted, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },
+  suggestionText: { color: theme.ink, fontFamily: theme.font.semibold, fontSize: 14 },
   cartHeading: { minHeight: 72, marginTop: 8, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface, borderRadius: 16, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, cartLabel: { flexDirection: 'row', gap: 8, alignItems: 'center' }, cartTitle: { fontFamily: theme.font.semibold, color: theme.ink }, expand: { color: theme.blueLight, fontFamily: theme.font.semibold, fontSize: 14 },
   categoryHeader: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, borderRadius: 12, marginTop: 5 }, categoryIcon: { width: 30, height: 30, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, categoryName: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 15, flexShrink: 1 }, categoryCount: { color: theme.muted, backgroundColor: theme.border, borderRadius: 14, paddingHorizontal: 8, overflow: 'hidden', fontFamily: theme.font.bold, fontSize: 13 }, categoryTotal: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 14 },
-  item: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 16, padding: 12, gap: 7 }, itemChecked: { backgroundColor: theme.background }, itemTop: { flexDirection: 'row', alignItems: 'center', gap: 7 }, thumbnail: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, photo: { width: '100%', height: '100%' }, checkbox: { width: 28, height: 28, borderWidth: 2, borderColor: theme.borderStrong, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, checkboxChecked: { backgroundColor: theme.blue, borderColor: theme.blue },
+  item: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 16, padding: 12, gap: 7 }, itemChecked: { backgroundColor: theme.background }, itemTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  thumbnail: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, photo: { width: '100%', height: '100%' },
+  itemScanButton: { width: 32, height: 32, borderRadius: 10, backgroundColor: theme.blueSoft, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.border, marginRight: 8 },
+  checkbox: { width: 28, height: 28, borderWidth: 2, borderColor: theme.borderStrong, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, checkboxChecked: { backgroundColor: theme.blue, borderColor: theme.blue },
   switchTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: theme.surfaceMuted, borderWidth: 2, borderColor: theme.borderStrong, justifyContent: 'center', paddingHorizontal: 2 },
   switchTrackChecked: { backgroundColor: theme.blue, borderColor: theme.blue },
   switchThumb: { width: 18, height: 18, borderRadius: 9, backgroundColor: theme.muted },
   switchThumbChecked: { backgroundColor: 'white', alignSelf: 'flex-end' },
   itemName: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 16, paddingHorizontal: 4 }, strike: { textDecorationLine: 'line-through', color: theme.subtle }, categoryBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, borderWidth: 1, borderColor: theme.border }, categoryBadgeText: { fontFamily: theme.font.semibold, fontSize: 12, lineHeight: 17 }, notes: { color: theme.warning, backgroundColor: theme.surfaceMuted, alignSelf: 'flex-start', borderRadius: 5, paddingHorizontal: 6, fontSize: 11 }, itemBottom: { borderTopWidth: 1, borderTopColor: theme.surfaceMuted, paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between', gap: 8, alignItems: 'center' }, quantityRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }, quantity: { color: theme.muted, fontFamily: theme.font.semibold, fontSize: 14, flexShrink: 1 }, labelThumbnail: { width: 28, height: 28, borderRadius: 6, borderWidth: 1, borderColor: theme.border }, photoOverlay: { flex: 1, backgroundColor: 'rgba(2,6,23,0.85)', justifyContent: 'center', alignItems: 'center', gap: 12, padding: 16 }, labelPreview: { width: '100%', height: '70%' }, price: { color: theme.blue, fontFamily: theme.font.semibold, fontSize: 14 }, noPrice: { color: theme.muted, fontSize: 14 },
-  composer: { flexDirection: 'row', gap: 8, padding: 12, backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.border }, composerInput: { flex: 1, minHeight: 50, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, borderRadius: 14, paddingHorizontal: 13, fontFamily: theme.font.regular, fontSize: 16, color: theme.ink }, scanButton: { width: 50, height: 50, borderRadius: 14, borderWidth: 1, borderColor: theme.blue, alignItems: 'center', justifyContent: 'center' }, addButton: { width: 50, height: 50, borderRadius: 14, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center' },
+  composerContainer: { paddingHorizontal: 12, paddingTop: 6, backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.border },
+  composerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: theme.borderStrong, paddingLeft: 14, paddingRight: 6, paddingVertical: 4, minHeight: 52 },
+  composerInput: { flex: 1, minHeight: 44, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 15, paddingVertical: 4 },
+  clearButton: { paddingHorizontal: 6, paddingVertical: 6, justifyContent: 'center', alignItems: 'center' },
+  composerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  composerButton: { width: 40, height: 40, borderRadius: 13, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' },
+  composerSubmitActive: { backgroundColor: theme.blue, borderColor: theme.blue },
 }));

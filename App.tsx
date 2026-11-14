@@ -76,7 +76,10 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [register, setRegister] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [lists, setLists] = useState<List[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -98,6 +101,7 @@ export default function App() {
   const [checkingOnlineUpdate, setCheckingOnlineUpdate] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanningItem, setScanningItem] = useState<ShoppingItem | null>(null);
   const [receiptAttachOpen, setReceiptAttachOpen] = useState(false);
   const [batchImportOpen, setBatchImportOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
@@ -438,16 +442,56 @@ export default function App() {
   setAppTheme(isDark);
 
   if ((starting || !fontsReady || !launchReady) && !fontTimeout) return <LaunchSplash dark={isDark} />;
-  if (!session) return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior="padding"><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
-    <View style={styles.brandRow}><Image source={require('./assets/logo.webp')} style={styles.brandLogo} /><Text style={styles.brand}>Caneto<Text style={styles.tm}>™</Text></Text></View>
-    <Text style={styles.tagline}>Caneto - A lista que te entende</Text>
-    <Text style={styles.title}>{register ? 'Crie sua conta' : 'Entre na sua conta'}</Text>
-    <Text style={styles.authDescription}>{register ? 'Guarde suas listas e compartilhe suas compras.' : 'Acesse suas listas e continue de onde parou.'}</Text>
+  if (!session) return <SafeAreaView style={styles.authRoot} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
+    <View style={styles.authHeader}>
+      <View style={styles.brandRow}>
+        <Image source={require('./assets/logo.webp')} style={styles.brandLogo} resizeMode="contain" />
+        <Text style={styles.brand}>Caneto<Text style={styles.tm}>™</Text></Text>
+      </View>
+      <Text style={styles.title}>{register ? 'Crie sua conta' : 'Entre na sua conta'}</Text>
+      <Text style={styles.authDescription}>{register ? 'Guarde suas listas e compartilhe suas compras.' : 'Acesse suas listas e continue de onde parou.'}</Text>
+    </View>
     <View style={styles.authCard}>
-      <View style={styles.segment}><Pressable style={[styles.segmentButton, !register && styles.authSegmentActive]} onPress={() => setRegister(false)}><Text style={[styles.segmentText, !register && styles.authSegmentText]}>Entrar</Text></Pressable><Pressable style={[styles.segmentButton, register && styles.authSegmentActive]} onPress={() => setRegister(true)}><Text style={[styles.segmentText, register && styles.authSegmentText]}>Criar conta</Text></Pressable></View>
-      <Text style={styles.fieldLabel}>E-mail</Text><TextInput style={styles.input} placeholder="voce@exemplo.com" autoCapitalize="none" keyboardType="email-address" autoComplete="email" value={email} onChangeText={setEmail} />
-      <Text style={styles.fieldLabel}>Senha</Text><TextInput style={styles.input} placeholder="Sua senha" secureTextEntry value={password} onChangeText={setPassword} />
-      <Pressable style={styles.button} disabled={busy} onPress={authenticate}><Text style={styles.buttonText}>{busy ? 'Aguarde...' : register ? 'Criar minha conta' : 'Entrar nas minhas listas  →'}</Text></Pressable>
+      <View style={styles.segment}>
+        <Pressable style={[styles.segmentButton, !register && styles.authSegmentActive]} onPress={() => setRegister(false)}>
+          <Text style={[styles.segmentText, !register && styles.authSegmentText]}>Entrar</Text>
+        </Pressable>
+        <Pressable style={[styles.segmentButton, register && styles.authSegmentActive]} onPress={() => setRegister(true)}>
+          <Text style={[styles.segmentText, register && styles.authSegmentText]}>Criar conta</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.fieldLabel}>E-mail</Text>
+      <TextInput
+        style={[styles.input, emailFocused && styles.inputFocused]}
+        placeholder="voce@exemplo.com"
+        placeholderTextColor={theme.placeholder}
+        autoCapitalize="none"
+        keyboardType="email-address"
+        autoComplete="email"
+        value={email}
+        onChangeText={setEmail}
+        onFocus={() => setEmailFocused(true)}
+        onBlur={() => setEmailFocused(false)}
+      />
+      <Text style={styles.fieldLabel}>Senha</Text>
+      <View style={[styles.passwordContainer, passwordFocused && styles.inputFocused]}>
+        <TextInput
+          style={styles.passwordInput}
+          placeholder="Sua senha"
+          placeholderTextColor={theme.placeholder}
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+          onFocus={() => setPasswordFocused(true)}
+          onBlur={() => setPasswordFocused(false)}
+        />
+        <Pressable style={styles.eyeButton} onPress={() => setShowPassword(prev => !prev)} accessibilityRole="button" accessibilityLabel={showPassword ? 'Ocultar senha' : 'Ver senha'}>
+          <Text style={styles.eyeButtonText}>{showPassword ? 'Ocultar' : 'Mostrar'}</Text>
+        </Pressable>
+      </View>
+      <Pressable style={styles.button} disabled={busy} onPress={authenticate}>
+        <Text style={styles.buttonText}>{busy ? 'Aguarde...' : register ? 'Criar minha conta' : 'Entrar nas minhas listas  →'}</Text>
+      </Pressable>
       {!register && <AccountAuthActions onError={message => Alert.alert('Não foi possível entrar', message)} />}
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
@@ -466,6 +510,10 @@ export default function App() {
     onAdd={addProduct}
     onAddProduct={addSuggestedProduct}
     onScan={() => setScannerOpen(true)}
+    onScanItem={item => {
+      setScanningItem(item);
+      setScannerOpen(true);
+    }}
     onRefresh={() => refresh(session.user.id)}
     trashCount={trashItems.length}
     onOpenTrash={() => setModal('trash')}
@@ -521,6 +569,7 @@ export default function App() {
         onReopenList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => setListCompleted(legacy, false), false); }}
         onRenameList={async (list, name) => mutate(() => renameList(list.id, name, list.storeName ?? ''), false)}
         onJoinList={() => setModal('join')}
+        onScanList={() => setModal('scan')}
         onRefresh={() => refresh(session.user.id)}
       />}
       {tab === 'stores' && <StoreExplorer savedCatalog={lists.reduce<Record<string, Item[]>>((catalog, list) => {
@@ -738,11 +787,42 @@ export default function App() {
     />
     <UpdateModal visible={updateModalVisible} updateInfo={updateInfo} onClose={() => setUpdateModalVisible(false)} />
     <FeedbackModal visible={feedbackOpen} onClose={() => setFeedbackOpen(false)} userId={session.user.id} email={session.user.email} name={profile?.displayName || undefined} />
-    <ScannerModal visible={scannerOpen && !!selectedId} userId={session.user.id} onClose={() => setScannerOpen(false)} onConfirm={async result => {
-      if (!selectedId) return;
-      for (const item of result.items) await addScannedItem(session.user.id, selectedId, item);
-      await refresh(session.user.id);
-    }} />
+    <ScannerModal
+      visible={scannerOpen && !!selectedId}
+      userId={session.user.id}
+      onClose={() => {
+        setScannerOpen(false);
+        setScanningItem(null);
+      }}
+      onConfirm={async result => {
+        if (!selectedId) return;
+        if (scanningItem) {
+          // Detecção de produto para o item específico: atualiza dados e dá check automático
+          const scanned = result.items[0];
+          if (scanned) {
+            await mutate(async () => {
+              const legacyItem = selected?.items.find(i => i.id === scanningItem.id);
+              if (legacyItem) {
+                await saveItemChanges(legacyItem, {
+                  name: scanned.name || legacyItem.name,
+                  price: scanned.price ?? legacyItem.price,
+                  ean: scanned.ean || legacyItem.ean,
+                  brand: scanned.brand || legacyItem.brand,
+                  photoUrl: scanned.photoUrl || legacyItem.photo_url,
+                  checked: true,
+                });
+              }
+            });
+            void playSound('check', preferences.soundEffects);
+            void triggerHaptic('selection', preferences.vibration);
+          }
+          setScanningItem(null);
+        } else {
+          for (const item of result.items) await addScannedItem(session.user.id, selectedId, item);
+        }
+        await refresh(session.user.id);
+      }}
+    />
     <ScannerModal visible={receiptAttachOpen && !!selected} userId={session.user.id} purpose="receipt" onClose={() => setReceiptAttachOpen(false)} onConfirm={async result => {
       if (!selected) return;
       await attachReceipt(selected, session.user.id, {
@@ -805,13 +885,45 @@ export default function App() {
 
 const styles = createThemedStyles(theme => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.background }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1 },
+  authRoot: { flex: 1, backgroundColor: theme.background },
   sync: { marginHorizontal: 16, marginTop: 6, color: theme.muted, fontFamily: theme.font.semibold, fontSize: 12 },
   tabContentContainer: { flex: 1, position: 'relative' }, screenArea: { flex: 1 },
   listBackRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 10 }, listBackName: { flex: 1, color: theme.ink, fontSize: 17, fontFamily: 'Poppins_700Bold' }, itemEditButton: { padding: 8, marginLeft: 3 }, optionsButton: { padding: 7, marginRight: -7 },
   socialJoin: { backgroundColor: green, borderRadius: 14, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 18 },
-  auth: { flexGrow: 1, justifyContent: 'center', padding: 22 }, brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 38 }, brandLogo: { width: 42, height: 42, marginRight: 9 }, brand: { color: theme.inkStrong, fontSize: 29, fontFamily: theme.font.extrabold }, tm: { color: green, fontSize: 13 }, tagline: { color: green, fontSize: 14, fontFamily: theme.font.bold, marginBottom: 8 }, authDescription: { color: theme.muted, fontSize: 16, marginBottom: 22 }, authCard: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 26, padding: 20 }, fieldLabel: { color: theme.ink, fontSize: 14, fontFamily: theme.font.bold, marginBottom: 7 }, title: { color: theme.inkStrong, fontSize: 30, fontFamily: theme.font.extrabold, marginBottom: 8 }, muted: { color: theme.muted, fontSize: 13 }, mutedLine: { color: theme.muted, fontSize: 15, marginHorizontal: 22, marginBottom: 14 },
-  input: { backgroundColor: theme.surface, color: theme.ink, borderWidth: 1, borderColor: theme.border, borderRadius: 14, padding: 15, fontSize: 16, fontFamily: theme.font.regular, marginBottom: 12 }, button: { backgroundColor: green, borderRadius: 15, alignItems: 'center', padding: 17, marginTop: 4 }, buttonBottom: { backgroundColor: green, borderRadius: 15, alignItems: 'center', padding: 17, margin: 18 }, buttonText: { color: 'white', fontSize: 16, fontFamily: theme.font.bold }, link: { color: green, textAlign: 'center', marginTop: 22, fontFamily: theme.font.bold },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 22 }, overline: { color: green, fontSize: 12, fontFamily: theme.font.extrabold, letterSpacing: 2 }, round: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.blueSoft, alignItems: 'center', justifyContent: 'center' }, roundText: { color: green, fontSize: 25 }, segment: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, backgroundColor: theme.surfaceMuted, borderRadius: 13, padding: 4 }, segmentButton: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10 }, segmentActive: { backgroundColor: green }, authSegmentActive: { backgroundColor: theme.surface, elevation: 2 }, authSegmentText: { color: green }, segmentText: { color: theme.muted, fontFamily: theme.font.bold }, segmentActiveText: { color: 'white' }, content: { paddingHorizontal: 18, paddingBottom: 80 }, empty: { textAlign: 'center', color: theme.subtle, marginTop: 70, fontSize: 16 }, card: { backgroundColor: theme.surface, borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: theme.border }, cardIcon: { backgroundColor: theme.blueSoft, borderRadius: 14, width: 52, height: 52, alignItems: 'center', justifyContent: 'center', marginRight: 14 }, cardEmoji: { fontSize: 24 }, cardTitle: { color: theme.ink, fontSize: 17, fontFamily: theme.font.bold, marginBottom: 4 }, arrow: { color: theme.muted, fontSize: 28 },
+  auth: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 20 },
+  authHeader: { alignItems: 'center', marginBottom: 18 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  brandLogo: { width: 44, height: 44, marginRight: 8 },
+  brand: { color: theme.inkStrong, fontSize: 32, fontFamily: theme.font.extrabold, letterSpacing: -0.5 },
+  tm: { color: green, fontSize: 13 },
+  tagline: { color: green, fontSize: 14, fontFamily: theme.font.bold, marginBottom: 8 },
+  authDescription: { color: theme.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', paddingHorizontal: 12 },
+  authCard: { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 24, padding: 18, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 },
+  fieldLabel: { color: theme.ink, fontSize: 13, fontFamily: theme.font.bold, marginBottom: 6 },
+  title: { color: theme.inkStrong, fontSize: 25, fontFamily: theme.font.extrabold, marginBottom: 4, letterSpacing: -0.5, textAlign: 'center' },
+  muted: { color: theme.muted, fontSize: 13 },
+  mutedLine: { color: theme.muted, fontSize: 15, marginHorizontal: 22, marginBottom: 14 },
+  input: { backgroundColor: theme.surface, color: theme.ink, borderWidth: 1.5, borderColor: theme.borderStrong, borderRadius: 14, paddingHorizontal: 16, height: 50, fontSize: 15, fontFamily: theme.font.regular, marginBottom: 12 },
+  inputFocused: { borderColor: green },
+  passwordContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1.5, borderColor: theme.borderStrong, borderRadius: 14, height: 50, paddingHorizontal: 16, marginBottom: 14 },
+  passwordInput: { flex: 1, color: theme.ink, height: '100%', fontSize: 15, fontFamily: theme.font.regular },
+  eyeButton: { paddingVertical: 8, paddingHorizontal: 6 },
+  eyeButtonText: { color: green, fontFamily: theme.font.semibold, fontSize: 13 },
+  button: { backgroundColor: green, borderRadius: 14, alignItems: 'center', justifyContent: 'center', height: 50, marginTop: 2 },
+  buttonBottom: { backgroundColor: green, borderRadius: 15, alignItems: 'center', padding: 17, margin: 18 },
+  buttonText: { color: 'white', fontSize: 15, fontFamily: theme.font.bold },
+  link: { color: green, textAlign: 'center', marginTop: 22, fontFamily: theme.font.bold },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 22 },
+  overline: { color: green, fontSize: 12, fontFamily: theme.font.extrabold, letterSpacing: 2 },
+  round: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  roundText: { color: green, fontSize: 25 },
+  segment: { flexDirection: 'row', marginBottom: 14, backgroundColor: theme.surfaceMuted, borderRadius: 14, padding: 3 },
+  segmentButton: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 11 },
+  segmentActive: { backgroundColor: green },
+  authSegmentActive: { backgroundColor: theme.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  authSegmentText: { color: green, fontFamily: theme.font.bold },
+  segmentText: { color: theme.muted, fontFamily: theme.font.semibold, fontSize: 14 },
+  segmentActiveText: { color: 'white' }, content: { paddingHorizontal: 18, paddingBottom: 80 }, empty: { textAlign: 'center', color: theme.subtle, marginTop: 70, fontSize: 16 }, card: { backgroundColor: theme.surface, borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: theme.border }, cardIcon: { backgroundColor: theme.blueSoft, borderRadius: 14, width: 52, height: 52, alignItems: 'center', justifyContent: 'center', marginRight: 14 }, cardEmoji: { fontSize: 24 }, cardTitle: { color: theme.ink, fontSize: 17, fontFamily: theme.font.bold, marginBottom: 4 }, arrow: { color: theme.muted, fontSize: 28 },
   item: { backgroundColor: theme.surface, borderRadius: 15, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 8 }, check: { width: 26, height: 26, borderWidth: 2, borderColor: theme.borderStrong, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 }, checked: { backgroundColor: green, borderColor: green }, checkText: { color: 'white', fontFamily: theme.font.extrabold }, itemText: { flex: 1, color: theme.ink, fontSize: 16, fontFamily: theme.font.semibold }, done: { textDecorationLine: 'line-through', color: theme.subtle }, composer: { flexDirection: 'row', backgroundColor: theme.surface, padding: 12, alignItems: 'center' }, plus: { width: 50, height: 50, backgroundColor: green, alignItems: 'center', justifyContent: 'center', borderRadius: 14, marginLeft: 6 }, plusText: { color: 'white', fontSize: 26 },
   landing: { paddingHorizontal: 18, paddingBottom: 36 }, landingHeader: { minHeight: 74, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, headerAction: { backgroundColor: green, borderRadius: 11, paddingHorizontal: 15, paddingVertical: 10 }, headerActionText: { color: 'white', fontSize: 14, fontFamily: theme.font.bold }, heroTitle: { color: theme.inkStrong, fontSize: 35, lineHeight: 40, fontFamily: theme.font.extrabold, letterSpacing: -1.2, textAlign: 'center', marginTop: 24 }, heroSubtitle: { color: theme.muted, fontSize: 17, lineHeight: 25, textAlign: 'center', marginTop: 17 }, heroActions: { marginTop: 25, gap: 11 }, heroPrimary: { marginTop: 0 }, heroSecondary: { padding: 15, alignItems: 'center', borderRadius: 13, borderWidth: 1, borderColor: theme.borderStrong, backgroundColor: theme.surface }, heroSecondaryText: { color: green, fontSize: 16, fontFamily: theme.font.bold }, demoCard: { marginTop: 30, padding: 20, backgroundColor: theme.surface, borderRadius: 28, borderWidth: 1, borderColor: theme.border, elevation: 3 }, demoEyebrow: { color: green, fontFamily: theme.font.extrabold, fontSize: 12, letterSpacing: 1.5 }, demoTitle: { color: theme.ink, fontSize: 22, fontFamily: theme.font.extrabold, marginTop: 5, marginBottom: 20 }, demoComposer: { flexDirection: 'row', alignItems: 'center' }, demoInput: { flex: 1, color: theme.ink, backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border, padding: 14, borderRadius: 13, fontSize: 15 }, demoItem: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: theme.background, borderRadius: 15, marginBottom: 14 }, demoHint: { color: theme.muted, lineHeight: 22, marginBottom: 12 }, benefits: { marginTop: 30, gap: 13 }, benefit: { color: theme.muted, fontSize: 15, fontFamily: theme.font.semibold }, authBack: { color: green, fontFamily: theme.font.bold, fontSize: 15, marginBottom: 28 },
   dockContainer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, zIndex: 100 },
