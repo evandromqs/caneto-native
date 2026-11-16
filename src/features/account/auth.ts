@@ -1,8 +1,20 @@
 import { makeRedirectUri } from 'expo-auth-session';
-import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../../supabase';
+
+function getQueryParams(input: string): { errorCode: string | null; params: Record<string, string> } {
+  const url = new URL(input, 'https://phony.example');
+  const errorCode = url.searchParams.get('errorCode');
+  url.searchParams.delete('errorCode');
+  const params: Record<string, string> = Object.fromEntries(url.searchParams.entries());
+  if (url.hash) {
+    new URLSearchParams(url.hash.replace(/^#/, '')).forEach((value, key) => {
+      params[key] = value;
+    });
+  }
+  return { errorCode, params };
+}
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -21,7 +33,7 @@ export type AccountRedirectResult = { kind: 'signed-in' | 'recovery'; userId: st
 
 /** Accepts both the current implicit Supabase callback and a future PKCE callback. */
 export async function completeAccountRedirect(url: string): Promise<AccountRedirectResult> {
-  const { params, errorCode } = QueryParams.getQueryParams(url);
+  const { params, errorCode } = getQueryParams(url);
   if (errorCode || params.error || params.error_description) {
     throw new Error(params.error_description || params.error || errorCode || 'Falha ao entrar na conta.');
   }

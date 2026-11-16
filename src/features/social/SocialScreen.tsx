@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppButton } from '../../ui/primitives';
 import { createThemedStyles, theme } from '../../ui/theme';
 
 export type SocialFriend = {
@@ -68,6 +70,7 @@ function Section({ title, children, highlight = false }: { title: string; childr
 }
 
 export function SocialScreen(props: SocialScreenProps) {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<'friends' | 'rankings'>('friends');
   const [allFriendsOpen, setAllFriendsOpen] = useState(false);
   const accepted = props.friends.filter(friend => friend.status === 'accepted');
@@ -148,10 +151,14 @@ export function SocialScreen(props: SocialScreenProps) {
             <View style={styles.personInfo}><Text style={styles.personName}>{list.name}</Text><Text style={styles.personSub}>{list.ownerName ? `De ${list.ownerName}` : 'Lista compartilhada'}{list.joinedAt ? ` · Acesso em ${new Date(list.joinedAt).toLocaleDateString('pt-BR')}` : ''}</Text></View><Ionicons name="chevron-forward" size={18} color={theme.blue} />
           </Pressable>)}
         </Section>
-        {props.onOpenJoin && <Pressable style={styles.joinButton} onPress={props.onOpenJoin}><Ionicons name="qr-code-outline" size={18} color="#FFFFFF" /><Text style={styles.joinText}>Acessar outra lista</Text></Pressable>}
       </> : props.ranking ? <RankingContent ranking={props.ranking} onOpenPerson={props.onOpenRankingPerson} /> :
         <View style={styles.card}><Text style={styles.emptyTitle}>Classificação indisponível</Text><Text style={styles.emptyText}>Os dados de compras ainda não foram carregados.</Text></View>}
     </ScrollView>
+    {tab === 'friends' && props.onOpenJoin && (
+      <View style={[styles.floating, { bottom: Math.max(insets.bottom, 12) + 76 }]} pointerEvents="box-none">
+        <AppButton label="Acessar outra lista" icon={<Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />} onPress={props.onOpenJoin} style={styles.joinButton} />
+      </View>
+    )}
     <Modal visible={allFriendsOpen} transparent animationType="fade" onRequestClose={() => setAllFriendsOpen(false)}>
       <Pressable style={styles.modalShade} onPress={() => setAllFriendsOpen(false)}><View style={styles.modalCard}>
         <Text style={styles.sectionTitle}>Todos os amigos</Text><ScrollView>{accepted.map(friend => <Pressable key={friend.id} style={styles.personRow} onPress={() => { setAllFriendsOpen(false); props.onOpenFriend?.(friend); }}><Avatar name={friend.name} url={friend.avatarUrl} online={friend.online} size={40} /><View style={styles.personInfo}><Text style={styles.personName}>{friend.name}</Text><Text style={styles.personSub}>@{friend.username}</Text></View><Ionicons name="chevron-forward" size={18} color={theme.muted} /></Pressable>)}</ScrollView>
@@ -186,7 +193,8 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   avatar: { backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarText: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 18 }, onlineDot: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: theme.success },
   listIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.blue, alignItems: 'center', justifyContent: 'center' }, actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }, action: { borderRadius: 10, paddingHorizontal: 11, minHeight: 33, alignItems: 'center', justifyContent: 'center' }, actionBlue: { backgroundColor: theme.blue }, actionDanger: { backgroundColor: theme.dangerSoft, borderWidth: 1, borderColor: '#FECACA' }, actionText: { fontFamily: theme.font.bold, fontSize: 12, color: '#FFFFFF' }, actionDangerText: { color: theme.danger },
   empty: { alignItems: 'center', paddingVertical: 20, gap: 8 }, emptyIcon: { width: 50, height: 50, borderRadius: 16, backgroundColor: theme.blueSoft, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { textAlign: 'center', fontFamily: theme.font.bold, fontSize: 14, color: theme.ink }, emptyText: { textAlign: 'center', fontFamily: theme.font.regular, fontSize: 13, color: theme.muted }, loadingRow: { flexDirection: 'row', justifyContent: 'center', gap: 8 }, more: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 13, textAlign: 'center', paddingVertical: 8 }, pill: { color: theme.blue, backgroundColor: theme.blueSoft, overflow: 'hidden', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 5, fontFamily: theme.font.bold, fontSize: 11 },
-  joinButton: { alignSelf: 'center', flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: theme.blue, paddingHorizontal: 20, minHeight: 47, borderRadius: 30 }, joinText: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 13 },
+  floating: { position: 'absolute', alignSelf: 'center', zIndex: 20 },
+  joinButton: { borderRadius: theme.radius.xxl, paddingHorizontal: 20, elevation: 6 },
   modalShade: { flex: 1, backgroundColor: theme.dialog.backdrop, justifyContent: 'center', padding: 18 }, modalCard: { maxHeight: '75%', backgroundColor: theme.surface, borderRadius: 20, padding: 18, gap: 12 },
   score: { fontFamily: theme.font.bold, fontSize: 17, color: theme.ink }, progressTrack: { height: 10, borderRadius: 6, backgroundColor: theme.border, overflow: 'hidden' }, progressFill: { height: 10, borderRadius: 6, backgroundColor: theme.blue }, statsRow: { flexDirection: 'row', gap: 7 }, statMini: { flex: 1, borderRadius: 11, padding: 7, alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }, statValue: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 15 }, statLabel: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 10, textAlign: 'center' }, achievementUnlocked: { backgroundColor: theme.successSoft, borderColor: theme.success }, rank: { color: theme.blue, fontFamily: theme.font.bold, fontSize: 15 },
 }));

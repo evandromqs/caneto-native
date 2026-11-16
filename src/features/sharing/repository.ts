@@ -24,7 +24,12 @@ export async function joinListByCode(code: string): Promise<'joined' | 'pending'
 
 export async function loadAccessRequests(listId: string): Promise<AccessRequest[]> {
   const { data, error } = await supabase.from('list_access_requests').select('id,requester_name,created_at').eq('list_id', listId).eq('status', 'pending').order('created_at');
-  if (error) throw error;
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01' || /list_access_requests/i.test(error.message ?? '')) {
+      return [];
+    }
+    throw error;
+  }
   return data ?? [];
 }
 

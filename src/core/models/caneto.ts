@@ -82,7 +82,7 @@ export interface Purchase {
 }
 
 export interface AppPreferences {
-  checkboxStyle?: 'circle' | 'switch';
+  checkboxStyle?: 'circle' | 'switch' | 'square';
   theme?: 'light' | 'dark' | 'system';
   showCategoryHeaders?: boolean;
   sortByCategory?: boolean;

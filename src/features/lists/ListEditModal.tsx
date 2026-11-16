@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
@@ -41,6 +41,8 @@ function ListEditDialog({
   onComplete,
 }: ListEditModalProps & { list: ShoppingList }) {
   const [name, setName] = useState(list.name);
+  const [editingName, setEditingName] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [store, setStore] = useState(list.storeName ?? '');
   const [isShared, setIsShared] = useState(list.permission !== 'owner');
   const [ownerName, setOwnerName] = useState(list.permission !== 'owner' ? 'Outro usuário' : '');
@@ -97,41 +99,75 @@ function ListEditDialog({
     }, true);
   };
 
-  const confirmDelete = () => {
-    Alert.alert('Excluir lista?', `A lista “${list.name}” e seus itens serão removidos.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: () => void run(() => onDelete(list), true) },
-    ]);
-  };
+  const confirmDelete = () => setConfirmingDelete(true);
 
   const footer = (
-    <View style={styles.footerActions}>
-      <AppButton label={canEdit ? 'Cancelar' : 'Fechar'} variant="ghost" onPress={onClose} disabled={busy} style={styles.footerButton} />
-      {canEdit && (
-        <AppButton
-          label="Salvar Alterações"
-          icon={<Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />}
-          loading={busy}
-          disabled={!name.trim()}
-          onPress={save}
-          style={styles.saveButton}
-        />
+    <View style={styles.footerVertical}>
+      {confirmingDelete ? (
+        <Pressable
+          style={({ pressed }) => [styles.dangerFilledBtn, pressed && styles.pressed, busy && styles.disabled]}
+          onPress={() => void run(() => onDelete(list), true)}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Confirmar exclusão da lista"
+        >
+          <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.primaryBtnText}>{busy ? 'Excluindo...' : 'Excluir lista'}</Text>
+        </Pressable>
+      ) : (
+        canEdit && editingName && (
+          <Pressable
+            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed, (busy || !name.trim()) && styles.disabled]}
+            onPress={save}
+            disabled={busy || !name.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Salvar"
+          >
+            <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.primaryBtnText}>{busy ? 'Salvando...' : 'Salvar'}</Text>
+          </Pressable>
+        )
       )}
+      <Pressable
+        style={({ pressed }) => [confirmingDelete ? styles.cancelNeutralBtn : styles.cancelBtnRed, pressed && styles.pressed]}
+        onPress={() => {
+          if (confirmingDelete) {
+            setConfirmingDelete(false);
+          } else if (editingName) {
+            setEditingName(false);
+          } else {
+            onClose();
+          }
+        }}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel="Cancelar"
+      >
+        <Text style={confirmingDelete ? styles.cancelNeutralBtnText : styles.cancelBtnRedText}>Cancelar</Text>
+      </Pressable>
     </View>
   );
 
   return (
     <ModalSheet
       visible
-      title="Editar Lista"
-      subtitle="Nome, estabelecimento e modo de conexão"
-      headerIcon={<Ionicons name="create-outline" size={21} color={theme.blue} />}
+      title={confirmingDelete ? 'Excluir lista?' : editingName ? 'Editar Nome' : 'Opções'}
+      hideCloseButton
+      centerTitle
       onClose={onClose}
       footer={footer}
     >
-      {canEdit && (
+      {confirmingDelete ? (
+        <View style={styles.confirmBody}>
+          <View style={styles.confirmIconWrap}>
+            <Ionicons name="trash-outline" size={24} color={theme.danger} />
+          </View>
+          <Text style={styles.confirmMessage}>
+            A lista “{list.name}” e todos os seus itens serão removidos permanentemente.
+          </Text>
+        </View>
+      ) : canEdit && editingName ? (
         <View style={styles.form}>
-          {/* Nome da Lista */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Nome da Lista</Text>
             <TextInput
@@ -144,214 +180,53 @@ function ListEditDialog({
               autoFocus
             />
           </View>
-
-          {/* Supermercado / Estabelecimento */}
-          <View style={styles.fieldGroup}>
-            <View style={styles.labelWithIcon}>
-              <Ionicons name="storefront-outline" size={14} color={theme.blue} />
-              <Text style={styles.fieldLabel}>Supermercado / Estabelecimento (Opcional)</Text>
-            </View>
-            <TextInput
-              style={styles.input}
-              value={store}
-              onChangeText={setStore}
-              placeholder="Ex: Pão de Açúcar, Carrefour, Atacadão..."
-              placeholderTextColor={theme.placeholder}
-              maxLength={120}
+        </View>
+      ) : (
+        <View style={styles.actionsGrid}>
+          {canEdit && (
+            <QuickAction
+              icon="create-outline"
+              label="Editar nome"
+              disabled={busy}
+              onPress={() => setEditingName(true)}
             />
-          </View>
-        </View>
-      )}
-
-      {/* Tipo de Lista / Origem */}
-      <View style={styles.originSection}>
-        <View style={styles.labelWithIcon}>
-          <Ionicons name="link-outline" size={14} color={theme.blue} />
-          <Text style={styles.fieldLabel}>Tipo de Lista / Origem</Text>
-        </View>
-
-        <View style={styles.segmentedControl}>
-          <Pressable
-            style={[styles.segmentTab, !isShared && styles.segmentTabActive]}
-            onPress={() => setIsShared(false)}
-          >
-            <Ionicons name="person-outline" size={15} color={!isShared ? theme.blue : theme.muted} />
-            <Text style={[styles.segmentText, !isShared && styles.segmentTextActive]}>
-              Minha Lista (Própria)
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.segmentTab, isShared && styles.segmentTabConnected]}
-            onPress={() => {
-              setIsShared(true);
-              if (!ownerName || ownerName === 'Você') setOwnerName('Ana Souza');
-            }}
-          >
-            <Ionicons name="link-outline" size={15} color={isShared ? '#FFFFFF' : theme.muted} />
-            <Text style={[styles.segmentText, isShared && styles.segmentTextConnected]}>
-              Conectada
-            </Text>
-          </Pressable>
-        </View>
-
-        {isShared && (
-          <View style={styles.connectedSubform}>
-            <View style={styles.labelWithIcon}>
-              <Ionicons name="people-outline" size={13} color={theme.blue} />
-              <Text style={styles.connectedLabel}>Nome do usuário proprietário</Text>
-            </View>
-            <TextInput
-              style={[styles.input, styles.connectedInput]}
-              value={ownerName}
-              onChangeText={setOwnerName}
-              placeholder="Ex: Ana Souza, Carlos Silva, etc."
-              placeholderTextColor={theme.placeholder}
-            />
-            <View style={styles.connectionCard}>
-              <Ionicons name="link-outline" size={15} color={theme.blue} />
-              <Text style={styles.connectionCardText}>
-                No card será exibido: <Text style={styles.boldText}>Criado por {ownerName || 'outro usuário'}</Text>
-              </Text>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Ações Secundárias: Compartilhar, Duplicar, Unir, Lixeira, Excluir */}
-      <View style={styles.secondarySection}>
-        <View style={styles.quickActions}>
-          {own && (
+          )}
+          {!!onShare && (
             <QuickAction
               icon="share-social-outline"
               label="Compartilhar"
-              onPress={() => {
-                onClose();
-                void onShare(list);
-              }}
               disabled={busy}
+              onPress={() => { onClose(); onShare(list); }}
+            />
+          )}
+          {!!onOpenTrash && (
+            <QuickAction
+              icon="trash-outline"
+              label={`Lixeira${(trashCount ?? 0) > 0 ? ` (${trashCount})` : ''}`}
+              disabled={busy}
+              onPress={() => { onClose(); onOpenTrash(list); }}
             />
           )}
           <QuickAction
-            icon="copy-outline"
-            label="Duplicar"
-            onPress={() => void run(() => onDuplicate(list), true)}
+            icon="print-outline"
+            label="Imprimir"
             disabled={busy}
+            onPress={() => {
+              const lines = (list.items ?? []).map(it => `${it.checked ? '☑' : '☐'} ${it.name} (${it.quantity} ${it.unit})`);
+              void Share.share({
+                title: list.name,
+                message: `${list.name}\n\n${lines.length ? lines.join('\n') : 'Lista vazia'}`,
+              });
+            }}
           />
-          {onMergeLists && (
+          {!!onDelete && canEdit && (
             <QuickAction
-              icon="git-merge-outline"
-              label="Unir"
-              active={isMergingOpen}
-              onPress={() => setIsMergingOpen(v => !v)}
+              icon="trash-bin-outline"
+              label="Excluir lista"
+              danger
               disabled={busy}
+              onPress={() => setConfirmingDelete(true)}
             />
-          )}
-          {onOpenTrash && !list.isCompleted && list.permission !== 'viewer' && (
-            <QuickAction
-              icon="archive-outline"
-              label={`Lixeira${trashCount && trashCount > 0 ? ` (${trashCount})` : ''}`}
-              onPress={() => {
-                onClose();
-                onOpenTrash(list);
-              }}
-              disabled={busy}
-            />
-          )}
-          {own && onComplete && (
-            <QuickAction
-              icon={list.isCompleted ? 'refresh-outline' : 'checkmark-circle-outline'}
-              label={list.isCompleted ? 'Reabrir' : 'Finalizar'}
-              onPress={() => {
-                if (list.isCompleted) void run(() => onComplete(list), true);
-                else {
-                  onClose();
-                  void onComplete(list);
-                }
-              }}
-              disabled={busy}
-            />
-          )}
-          {own && <QuickAction icon="trash-outline" label="Excluir" onPress={confirmDelete} disabled={busy} danger />}
-        </View>
-      </View>
-
-      {/* 🔀 PAINEL DE UNIR LISTA COM OUTRA EM ABERTO */}
-      {isMergingOpen && (
-        <View style={styles.mergePanel}>
-          <View style={styles.mergeHeader}>
-            <View style={styles.mergeTitleWrap}>
-              <Ionicons name="git-merge-outline" size={17} color={theme.blue} />
-              <Text style={styles.mergeTitle}>Unir com outra lista em aberto</Text>
-            </View>
-            <Pressable onPress={() => setIsMergingOpen(false)} style={styles.mergeClose}>
-              <Ionicons name="close" size={17} color={theme.muted} />
-            </Pressable>
-          </View>
-
-          <Text style={styles.mergeDescription}>
-            Selecione outra lista em aberto para adicionar todos os itens dela a{' '}
-            <Text style={styles.boldText}>“{list.name}”</Text>:
-          </Text>
-
-          {otherOpenLists.length === 0 ? (
-            <View style={styles.mergeEmpty}>
-              <Text style={styles.mergeEmptyText}>Não há outras listas em aberto disponíveis para unir.</Text>
-            </View>
-          ) : (
-            <View style={styles.mergeForm}>
-              <ScrollView style={styles.sourceListsContainer} nestedScrollEnabled>
-                {otherOpenLists.map(sourceList => {
-                  const isChosen = selectedSourceListId === sourceList.id;
-                  return (
-                    <Pressable
-                      key={sourceList.id}
-                      style={[styles.sourceListOption, isChosen && styles.sourceListOptionActive]}
-                      onPress={() => setSelectedSourceListId(sourceList.id)}
-                    >
-                      <Ionicons
-                        name={isChosen ? 'radio-button-on' : 'radio-button-off'}
-                        size={17}
-                        color={isChosen ? theme.blue : theme.muted}
-                      />
-                      <Text style={[styles.sourceListName, isChosen && styles.sourceListNameActive]} numberOfLines={1}>
-                        {sourceList.name}
-                      </Text>
-                      <Text style={styles.sourceListItemCount}>({sourceList.items.length} itens)</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-
-              {!!selectedSource && (
-                <View style={styles.sourceInfoCard}>
-                  <Text style={styles.sourceInfoText}>
-                    Serão importados <Text style={styles.boldText}>{selectedSource.items.length} item(ns)</Text> da lista selecionada.
-                  </Text>
-                </View>
-              )}
-
-              <Pressable
-                style={styles.deleteSourceCheckboxRow}
-                onPress={() => setDeleteSourceAfterMerge(v => !v)}
-              >
-                <Ionicons
-                  name={deleteSourceAfterMerge ? 'checkbox' : 'square-outline'}
-                  size={19}
-                  color={deleteSourceAfterMerge ? theme.blue : theme.muted}
-                />
-                <Text style={styles.deleteSourceText}>Excluir a outra lista após unir</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.mergeConfirmButton, (!selectedSourceListId || busy) && styles.disabled]}
-                disabled={!selectedSourceListId || busy}
-                onPress={() => void handleConfirmMerge()}
-              >
-                <Ionicons name="git-merge-outline" size={17} color="#FFFFFF" />
-                <Text style={styles.mergeConfirmText}>{busy ? 'Unindo listas...' : 'Confirmar e Unir Listas'}</Text>
-              </Pressable>
-            </View>
           )}
         </View>
       )}
@@ -390,7 +265,7 @@ function QuickAction({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Ionicons name={icon} size={15} color={active ? '#FFFFFF' : danger ? theme.danger : theme.blue} />
+      <Ionicons name={icon} size={15} color={active ? '#FFFFFF' : danger ? theme.danger : theme.ink} />
       <Text style={[styles.quickActionText, active && styles.quickActionTextActive, danger && styles.dangerText]}>
         {label}
       </Text>
@@ -400,6 +275,18 @@ function QuickAction({
 
 const styles = createThemedStyles(theme => StyleSheet.create({
   form: { gap: 12, marginBottom: 4 },
+  actionsGrid: { flexDirection: 'column', gap: 8, marginTop: 10 },
+  footerVertical: { flexDirection: 'column', gap: 8, width: '100%' },
+  primaryBtn: { width: '100%', minHeight: 44, borderRadius: 12, backgroundColor: theme.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  dangerFilledBtn: { width: '100%', minHeight: 44, borderRadius: 12, backgroundColor: theme.danger, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  primaryBtnText: { color: '#FFFFFF', fontFamily: theme.font.bold, fontSize: 14 },
+  cancelBtnRed: { width: '100%', minHeight: 44, borderRadius: 12, backgroundColor: theme.dangerSoft, borderWidth: 1, borderColor: theme.danger, alignItems: 'center', justifyContent: 'center' },
+  cancelBtnRedText: { color: theme.danger, fontFamily: theme.font.bold, fontSize: 14 },
+  cancelNeutralBtn: { width: '100%', minHeight: 44, borderRadius: 12, backgroundColor: theme.surfaceMuted, borderWidth: 1, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  cancelNeutralBtnText: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 14 },
+  confirmBody: { alignItems: 'center', gap: 10, paddingVertical: 8 },
+  confirmIconWrap: { width: 48, height: 48, borderRadius: 14, backgroundColor: theme.dangerSoft, alignItems: 'center', justifyContent: 'center' },
+  confirmMessage: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   fieldGroup: { gap: 5 },
   labelWithIcon: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fieldLabel: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 14 },
@@ -468,13 +355,14 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   },
   quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quickAction: {
-    minHeight: 38,
+    width: '100%',
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    borderRadius: 11,
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.border,
     backgroundColor: theme.surfaceMuted,

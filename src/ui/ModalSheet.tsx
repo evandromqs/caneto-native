@@ -12,22 +12,26 @@ type Props = {
   children: ReactNode;
   footer?: ReactNode;
   headerIcon?: ReactNode;
+  hideCloseButton?: boolean;
+  centerTitle?: boolean;
   testID?: string;
 };
 
-export function ModalSheet({ visible, title, subtitle, onClose, children, footer, headerIcon, testID }: Props) {
+export function ModalSheet({ visible, title, subtitle, onClose, children, footer, headerIcon, hideCloseButton = false, centerTitle = false, testID }: Props) {
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
     <SafeAreaView style={styles.overlay} edges={['top', 'bottom', 'left', 'right']}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar janela" />
       <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet} accessibilityViewIsModal accessibilityLabel={title} testID={testID}>
-          <View style={styles.header}>
+          <View style={[styles.header, centerTitle && { justifyContent: 'center' }]}>
             {!!headerIcon && <View style={styles.headerIcon}>{headerIcon}</View>}
-            <View style={styles.heading}>
-              <Text style={styles.title} accessibilityRole="header">{title}</Text>
-              {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+            <View style={{ flex: 1, alignItems: centerTitle ? 'center' : 'flex-start' }}>
+              <Text style={[styles.title, centerTitle && { textAlign: 'center' }]}>{title}</Text>
+              {!!subtitle && <Text style={[styles.subtitle, centerTitle && { textAlign: 'center' }]}>{subtitle}</Text>}
             </View>
-            <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar janela"><Ionicons name="close" size={22} color={theme.muted} /></Pressable>
+            {!hideCloseButton && (
+              <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar janela"><Ionicons name="close" size={22} color={theme.muted} /></Pressable>
+            )}
           </View>
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{children}</ScrollView>
           {!!footer && <View style={styles.footer}>{footer}</View>}

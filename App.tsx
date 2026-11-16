@@ -6,6 +6,8 @@ import type { Session } from '@supabase/supabase-js';
 import { addItem, addScannedItem, createList, loadLists, setItemChecked, type Item, type List } from './src/data';
 import { supabase } from './src/supabase';
 import { createThemedStyles, setAppTheme, theme } from './src/ui/theme';
+import { setHapticsEnabled, triggerHaptic } from './src/core/device/haptics';
+import { playSound, setSoundEnabled, SoundEngine } from './src/core/device/sounds';
 import { NewListModal, ItemEditModal } from './src/features/lists/ListModals';
 import { ListEditModal } from './src/features/lists/ListEditModal';
 import { addBatchItems, duplicateList, mergeListsData, removeList, renameList, saveItemChanges, setListCompleted, uncheckAllItems } from './src/features/lists/repository';
@@ -14,7 +16,8 @@ import { joinListByCode } from './src/features/sharing/repository';
 import { ProfileModal } from './src/features/profile/ProfileModal';
 import { HistoryModal, PaymentModal } from './src/features/purchases/PurchaseModals';
 import { attachReceipt, finishPurchase, recreatePurchase, type PurchaseReceipt } from './src/features/purchases/repository';
-import { StoreExplorer, StorePickerModal } from './src/features/stores/StoreExplorer';
+import { StoreExplorer, StorePickerModal, type CatalogProductInput } from './src/features/stores/StoreExplorer';
+import { linkStoreToList } from './src/features/stores/repository';
 import { ListsOverview } from './src/features/lists/ListsOverview';
 import type { DeletedShoppingItem, Profile, Purchase, ShoppingItem, ShoppingList } from './src/core/models/caneto';
 import { canetoData } from './src/core/data/supabaseAdapter';
@@ -49,8 +52,6 @@ import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, movePurchasedItemsToTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
-import { triggerHaptic } from './src/core/device/haptics';
-import { playSound } from './src/core/device/sounds';
 import { checkAndApplyOnlineUpdate, checkAppUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
 import { ScannerModal } from './src/features/capture/ScannerModal';
@@ -58,6 +59,8 @@ import { bindSyncUser, currentSyncUserId, flushOutbox, subscribeSync, watchConne
 import { readListCache, subscribeListCache } from './src/core/sync/listCache';
 import { subscribeShoppingChanges } from './src/core/sync/realtime';
 import { LaunchSplash } from './src/features/launch/LaunchSplash';
+import { CANETO_API } from './src/core/api';
+import * as WebBrowser from 'expo-web-browser';
 import * as SplashScreen from 'expo-splash-screen';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -108,6 +111,7 @@ export default function App() {
   const [batchImportOpen, setBatchImportOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingRequired, setOnboardingRequired] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<SocialFriend | null>(null);
   const [syncText, setSyncText] = useState('');
@@ -228,6 +232,26 @@ export default function App() {
     return () => { stopNet(); stopRemote(); if (timer) clearTimeout(timer); };
   }, [session?.user.id, refresh]);
   useEffect(() => {
+    if (!session?.user.id) return;
+    let active = true;
+    canetoData.profile(session.user.id)
+      .then(nextProfile => {
+        if (!active) return;
+        setProfile(nextProfile);
+        const localDone = typeof localStorage !== 'undefined' && localStorage.getItem(`caneto_onboarding_completed_${session.user.id}`) === 'true';
+        const hasIdentity = !!(nextProfile?.username?.trim() && nextProfile?.displayName?.trim());
+        const hasPrefs = Boolean((nextProfile?.preferences as Record<string, unknown> | undefined)?.hasCompletedOnboarding);
+        if (!localDone && (!hasIdentity || !hasPrefs)) {
+          setOnboardingRequired(true);
+          setOnboardingOpen(true);
+        } else {
+          setOnboardingRequired(false);
+        }
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [session?.user.id]);
+  useEffect(() => {
     if (!session || tab !== 'settings') return;
     let active = true;
     Promise.all([canetoData.profile(session.user.id), canetoData.purchases(session.user.id)])
@@ -344,18 +368,35 @@ export default function App() {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (batchImportOpen) { setBatchImportOpen(false); return true; }
       if (changelogOpen) { setChangelogOpen(false); return true; }
-      if (onboardingOpen) { setOnboardingOpen(false); return true; }
+      if (onboardingOpen) { if (!onboardingRequired) setOnboardingOpen(false); return true; }
       if (statsOpen) { setStatsOpen(false); return true; }
       if (selectedFriend) { setSelectedFriend(null); return true; }
       if (feedbackOpen) { setFeedbackOpen(false); return true; }
       if (updateModalVisible) { setUpdateModalVisible(false); return true; }
       if (modal) { setModal(null); return true; }
-      if (selectedId) { setSelectedId(null); return true; }
+      if (selectedId) { leaveSelectedList(); return true; }
       if (tab !== 'lists') { setTab('lists'); return true; }
       return false;
     });
     return () => subscription.remove();
-  }, [session, modal, selectedId, tab, batchImportOpen, changelogOpen, onboardingOpen, statsOpen, selectedFriend, feedbackOpen, updateModalVisible]);
+  }, [session, modal, selectedId, lists, tab, batchImportOpen, changelogOpen, onboardingOpen, statsOpen, selectedFriend, feedbackOpen, updateModalVisible]);
+
+  function leaveSelectedList() {
+    if (pendingDeletedItemRef.current) void handleCommitDelete(pendingDeletedItemRef.current.item);
+    const current = lists.find(row => row.id === selectedId);
+    setSelectedId(null);
+    if (
+      current &&
+      !current.is_completed &&
+      (current.permission ?? 'owner') === 'owner' &&
+      current.items.length === 0 &&
+      !current.store_id &&
+      !current.store_name
+    ) {
+      setLists(prev => prev.filter(row => row.id !== current.id));
+      void removeList(current.id).catch(() => undefined);
+    }
+  }
 
   async function authenticate() {
     if (!email.trim() || !password) return Alert.alert('Preencha e-mail e senha');
@@ -369,12 +410,20 @@ export default function App() {
   async function addProduct(name: string) {
     if (!session || !selectedId || !name.trim() || !selected || selected.is_completed || selected.permission === 'viewer') return;
     setBusy(true);
-    try { await addItem(session.user.id, selectedId, name); await refresh(session.user.id); }
+    try {
+      await addItem(session.user.id, selectedId, name);
+      void triggerHaptic('light');
+      void playSound('add');
+      await refresh(session.user.id);
+    }
     catch (error) { errorMessage(error); throw error; } finally { setBusy(false); }
   }
   async function toggle(item: Item) {
     if (!session || !selected || selected.is_completed || selected.permission === 'viewer') return;
-    try { await setItemChecked(item, !item.checked); await refresh(session.user.id); }
+    const nextChecked = !item.checked;
+    void triggerHaptic(nextChecked ? 'medium' : 'light');
+    void playSound(nextChecked ? 'check' : 'uncheck');
+    try { await setItemChecked(item, nextChecked); await refresh(session.user.id); }
     catch (error) { errorMessage(error); }
   }
   async function mutate(action: () => Promise<unknown>, close = true) {
@@ -431,7 +480,7 @@ export default function App() {
   }
   const systemScheme = useColorScheme();
   const preferences: SettingsPreferences = {
-    theme: profile?.preferences.theme ?? 'light',
+    theme: profile?.preferences.theme ?? 'system',
     fontSize: profile?.preferences.fontSize ?? 'normal',
     checkboxStyle: profile?.preferences.checkboxStyle ?? 'circle',
     highContrast: profile?.preferences.highContrast ?? false,
@@ -441,10 +490,12 @@ export default function App() {
   };
 
   const isDark = preferences.theme === 'dark' || (preferences.theme === 'system' && systemScheme === 'dark');
-  setAppTheme(isDark);
+  setAppTheme(isDark, { fontSize: preferences.fontSize, highContrast: preferences.highContrast });
+  setHapticsEnabled(preferences.vibration);
+  setSoundEnabled(preferences.soundEffects);
 
   if ((starting || !fontsReady || !launchReady) && !fontTimeout) return <LaunchSplash dark={isDark} />;
-  if (!session) return <SafeAreaView style={styles.authRoot} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" /><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
+  if (!session) return <SafeAreaView style={styles.authRoot} edges={['top', 'bottom', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} /><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.auth} keyboardShouldPersistTaps="handled">
     <View style={styles.authHeader}>
       <View style={styles.brandRow}>
         <Image source={require('./assets/logo.webp')} style={styles.brandLogo} resizeMode="contain" />
@@ -498,13 +549,10 @@ export default function App() {
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 
-  return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'left', 'right']}><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />{!!syncText && <Text style={styles.sync}>{syncText}</Text>}{selected?.domain ? <ShoppingListScreen
+  return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'left', 'right']}><SoundEngine /><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />{!!syncText && <Text style={styles.sync}>{syncText}</Text>}{selected?.domain ? <ShoppingListScreen
     list={selected.domain}
     busy={busy}
-    onBack={() => {
-      if (pendingDeletedItemRef.current) void handleCommitDelete(pendingDeletedItemRef.current.item);
-      setSelectedId(null);
-    }}
+    onBack={leaveSelectedList}
     onOptions={() => { setModalListId(selected.id); setModal('list'); }}
     onSelectStore={() => setModal('store')}
     onToggle={item => { const legacy = selected.items.find(row => row.id === item.id); if (legacy) return toggle(legacy); }}
@@ -571,16 +619,75 @@ export default function App() {
         onReopenList={async list => { const legacy = lists.find(row => row.id === list.id); if (legacy) await mutate(() => setListCompleted(legacy, false), false); }}
         onRenameList={async (list, name) => mutate(() => renameList(list.id, name, list.storeName ?? ''), false)}
         onJoinList={() => setModal('join')}
-        onScanList={() => setScannerOpen(true)}
+        onScanList={async () => {
+          const openList = lists.find(row => !row.is_completed && row.domain?.permission !== 'viewer');
+          if (openList) {
+            setSelectedId(openList.id);
+            setScannerOpen(true);
+            return;
+          }
+          const cleanName = 'Lista Escaneada';
+          const id = await createList(session.user.id, cleanName);
+          const now = Date.now();
+          const newListDomain: ShoppingList = {
+            id, ownerId: session.user.id, permission: 'owner', name: cleanName,
+            icon: 'ShoppingCart', color: 'emerald', isDefault: false,
+            accessMode: 'private', isCompleted: false, pendingReceipt: false, createdAt: now, updatedAt: now, items: [],
+          };
+          const newListLegacy: List = {
+            id, name: cleanName, color: 'emerald', user_id: session.user.id,
+            is_completed: false, created_at: now, updated_at: now, items: [], domain: newListDomain,
+          };
+          setLists(prev => [newListLegacy, ...prev.filter(l => l.id !== id)]);
+          setSelectedId(id);
+          setScannerOpen(true);
+          void refresh(session.user.id).catch(console.warn);
+        }}
         onRefresh={() => refresh(session.user.id)}
       />}
-      {tab === 'stores' && <StoreExplorer savedCatalog={lists.reduce<Record<string, Item[]>>((catalog, list) => {
+      {tab === 'stores' && <StoreExplorer
+        availableLists={lists
+          .filter(l => !l.is_completed && (l.permission ?? 'owner') !== 'viewer')
+          .map(l => ({ id: l.id, name: l.name, itemCount: l.items.length }))}
+        onImportItems={async (store, items, targetListId, newListName) => {
+          if (!session || !items.length) return;
+          let listId = targetListId;
+          if (!listId || listId === 'new') {
+            listId = await createList(session.user.id, (newListName ?? '').trim() || `Compras · ${store.name}`);
+            await linkStoreToList(listId, store);
+          }
+          await addBatchItems(
+            session.user.id,
+            listId,
+            items.map((it: CatalogProductInput) => ({
+              name: it.name,
+              quantity: 1,
+              unit: it.unit || 'un',
+              price: it.price,
+              categoryId: it.categoryId || 'other',
+            }))
+          );
+          await refresh(session.user.id);
+          setSelectedId(listId);
+          setTab('lists');
+        }}
+        savedCatalog={lists.reduce<Record<string, Item[]>>((catalog, list) => {
         if (list.store_id) catalog[list.store_id] = [...(catalog[list.store_id] ?? []), ...list.items];
         return catalog;
-      }, {})} savedStores={lists.filter(list => !!list.store_id && !!list.store_name && list.items.length > 0).map(list => ({
-        id: list.store_id!, name: list.store_name!, category: 'other' as const, categoryLabel: 'Loja',
-        address: list.domain?.storeAddress || '', source: 'community' as const,
-      }))} />}
+      }, {})} savedStores={lists
+        .filter(list => !!list.store_id && !!(list.store_name ?? '').trim() && list.items.length > 0 && !/giant food/i.test(list.store_name ?? '') && !/ashburn/i.test(list.domain?.storeAddress ?? ''))
+        .map(list => {
+          const isCommunityUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(list.store_id ?? '');
+          return {
+            id: list.store_id!,
+            placeId: isCommunityUuid ? undefined : list.store_id!,
+            name: list.store_name!,
+            category: 'other' as const,
+            categoryLabel: 'Loja',
+            address: list.domain?.storeAddress || '',
+            source: (isCommunityUuid ? 'community' : 'google') as 'community' | 'google',
+          };
+        })} />}
       {tab === 'social' && <SocialScreen
         {...(socialData ?? { friends: [] })}
         friendsLoading={socialLoading}
@@ -605,6 +712,27 @@ export default function App() {
       {tab === 'settings' && <SettingsScreen
         profile={{ email: session.user.email, displayName: profile?.displayName, username: profile?.username, avatarUrl: profile?.avatarUrl }}
         plan={profile ? { tier: profile.planTier ?? 'free', scansUsed: profile.aiScansUsedThisMonth ?? 0, scansLimit: profile.aiScansLimit ?? 0 } : undefined}
+        onSelectPlanCycle={profile?.planTier === 'pro' ? undefined : async (cycle: 'monthly' | 'yearly') => {
+          try {
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (!currentSession?.access_token) throw new Error('Faça login novamente para assinar o Caneto Pro.');
+            const res = await fetch(`${CANETO_API}/api/stripe/checkout`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${currentSession.access_token}`,
+              },
+              body: JSON.stringify({ cycle }),
+            });
+            const body = await res.json() as { url?: string; error?: string };
+            if (!res.ok || !body.url) throw new Error(body.error || 'Não foi possível iniciar o checkout da Stripe.');
+            await WebBrowser.openBrowserAsync(body.url);
+            const nextProfile = await canetoData.profile(session.user.id);
+            if (nextProfile) setProfile(nextProfile);
+          } catch (err) {
+            errorMessage(err);
+          }
+        }}
         purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
         preferences={preferences}
         version={CURRENT_APP_VERSION}
@@ -691,7 +819,7 @@ export default function App() {
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={entry.label}
           >
-            <CanetoIcon name={entry.icon} size={20} color={isActive ? '#FFFFFF' : isDark ? '#94A3B8' : '#64748B'} />
+            <CanetoIcon name={entry.icon} size={20} color={isActive ? '#FFFFFF' : isDark ? '#CBD5E1' : '#64748B'} />
             {isActive && <NativeText numberOfLines={1} style={styles.dockActiveText}>{entry.label}</NativeText>}
           </Pressable>;
         })}
@@ -796,7 +924,7 @@ export default function App() {
         setScannerOpen(false);
         setScanningItem(null);
       }}
-      onConfirm={async result => {
+      onConfirm={async (result, options) => {
         if (!selectedId) return;
         if (scanningItem) {
           // Detecção de produto para o item específico: atualiza dados e dá check automático
@@ -825,7 +953,21 @@ export default function App() {
           }
           setScanningItem(null);
         } else {
-          for (const item of result.items) await addScannedItem(session.user.id, selectedId, item);
+          for (const item of result.items) {
+            await addScannedItem(session.user.id, selectedId, item);
+          }
+          const latestLists = await loadLists(session.user.id);
+          if (currentSyncUserId() === session.user.id) setLists(latestLists);
+          if (options?.openEdit && result.items[0]) {
+            const target = result.items[0];
+            const currentList = latestLists.find(l => l.id === selectedId);
+            const matched = currentList?.items.find(i => (target.ean && i.ean === target.ean) || i.name === target.name);
+            if (matched) {
+              setModalItemId(matched.id);
+              setModal('item');
+            }
+          }
+          return;
         }
         await refresh(session.user.id);
       }}
@@ -849,7 +991,73 @@ export default function App() {
       }}
     />
     <ChangelogModal visible={changelogOpen} onClose={() => setChangelogOpen(false)} />
-    <OnboardingModal visible={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
+    <OnboardingModal
+      visible={onboardingOpen}
+      required={onboardingRequired}
+      userId={session.user.id}
+      userEmail={session.user.email}
+      initialProfile={profile}
+      initialPreferences={preferences}
+      onPreviewPreferences={next => {
+        setProfile(current => current ? { ...current, preferences: { ...current.preferences, ...next } } : {
+          id: session.user.id,
+          email: session.user.email ?? undefined,
+          visibility: 'public',
+          isPhotoPublic: true,
+          preferences: next,
+          updatedAt: Date.now(),
+        });
+      }}
+      onComplete={async result => {
+        const nextPrefs = { ...result.preferences, hasCompletedOnboarding: true };
+        const payload = {
+          display_name: result.displayName,
+          username: result.username,
+          avatar_url: result.avatarUrl || null,
+          visibility: result.visibility,
+          is_photo_public: result.isPhotoPublic,
+          preferences: nextPrefs,
+          updated_at: Date.now(),
+        };
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        let saveError = existing
+          ? (await supabase.from('profiles').update(payload).eq('id', session.user.id)).error
+          : (await supabase.from('profiles').insert({ id: session.user.id, email: session.user.email ?? null, ...payload })).error;
+
+        if (saveError && saveError.code === '23505') {
+          const fallbackUsername = `${result.username.slice(0, 14)}_${Math.floor(100 + Math.random() * 899)}`;
+          const retryPayload = { ...payload, username: fallbackUsername };
+          saveError = existing
+            ? (await supabase.from('profiles').update(retryPayload).eq('id', session.user.id)).error
+            : (await supabase.from('profiles').insert({ id: session.user.id, email: session.user.email ?? null, ...retryPayload })).error;
+          if (!saveError) result.username = fallbackUsername;
+        }
+        if (saveError) throw saveError;
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem(`caneto_onboarding_completed_${session.user.id}`, 'true');
+          } catch {}
+        }
+        setProfile(current => ({
+          ...(current ?? { id: session.user.id, email: session.user.email ?? undefined }),
+          displayName: result.displayName,
+          username: result.username,
+          avatarUrl: result.avatarUrl,
+          visibility: result.visibility,
+          isPhotoPublic: result.isPhotoPublic,
+          preferences: nextPrefs,
+          updatedAt: Date.now(),
+        }));
+        setOnboardingRequired(false);
+        setOnboardingOpen(false);
+      }}
+      onClose={() => { if (!onboardingRequired) setOnboardingOpen(false); }}
+    />
     <StatsDetailsModal
       visible={statsOpen}
       purchases={purchases}

@@ -39,6 +39,7 @@ export type Store = {
 
 export type StorePrice = {
   id: string;
+  ean?: string | null;
   product_name: string;
   canonical_name: string;
   category_id: string;

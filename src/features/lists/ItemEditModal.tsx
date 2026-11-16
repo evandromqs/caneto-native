@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,8 +18,10 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import type { Item } from '../../data';
+import { supabase } from '../../supabase';
 import { CATEGORIES } from '../../core/categories';
 import { CANETO_API } from '../../core/api';
+import { recordLocalAiScan } from '../../core/scanner/quota';
 import { applyPriceKey, finalizePriceEntry, formatPriceEntry, priceToDigits, validEan } from '../../core/priceEntry';
 import { CanetoIcon } from '../../ui/CanetoIcon';
 import { createThemedStyles, theme } from '../../ui/theme';
@@ -117,6 +121,45 @@ function ItemEditDialog({
     ]);
   };
 
+  const analyzeCapturedLabel = async (base64?: string | null) => {
+    if (!base64) return;
+    try {
+      showToast('Lendo preço da etiqueta com IA...');
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      const res = await fetch(`${CANETO_API}/api/label`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ image: `data:image/jpeg;base64,${base64}` }),
+      });
+      const body = await res.json() as {
+        label?: {
+          price?: number | null;
+          promoPrice?: number | null;
+          productName?: string | null;
+          brand?: string | null;
+          barcode?: string | null;
+        };
+      };
+      if (res.ok && body.label) {
+        recordLocalAiScan();
+        const detectedPrice = body.label.promoPrice ?? body.label.price;
+        if (typeof detectedPrice === 'number' && detectedPrice > 0) {
+          setPrice(detectedPrice.toFixed(2).replace('.', ','));
+        }
+        if (!name.trim() && body.label.productName) setName(body.label.productName);
+        if (!brand.trim() && body.label.brand) setBrand(body.label.brand);
+        if (!ean.trim() && body.label.barcode) setEan(body.label.barcode);
+        showToast(detectedPrice ? `Preço R$ ${detectedPrice.toFixed(2).replace('.', ',')} lido da etiqueta!` : 'Etiqueta capturada!');
+      } else {
+        showToast('Etiqueta salva (preencha o preço se necessário).');
+      }
+    } catch {
+      showToast('Etiqueta salva!');
+    }
+  };
+
   const handleCaptureLabelPhoto = () => {
     if (isCompleted) return;
     Alert.alert('Etiqueta de preço', 'Fotografar etiqueta:', [
@@ -124,20 +167,22 @@ function ItemEditDialog({
       {
         text: 'Tirar foto da etiqueta',
         onPress: async () => {
-          const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-          if (!res.canceled && res.assets[0]?.uri) {
-            setLabelPhoto(res.assets[0].uri);
-            showToast('Etiqueta capturada!');
+          const res = await ImagePicker.launchCameraAsync({ quality: 0.65, base64: true });
+          const asset = !res.canceled ? res.assets[0] : undefined;
+          if (asset?.uri) {
+            setLabelPhoto(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
+            void analyzeCapturedLabel(asset.base64);
           }
         },
       },
       {
         text: 'Escolher da galeria',
         onPress: async () => {
-          const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
-          if (!res.canceled && res.assets[0]?.uri) {
-            setLabelPhoto(res.assets[0].uri);
-            showToast('Etiqueta capturada!');
+          const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.65, base64: true });
+          const asset = !res.canceled ? res.assets[0] : undefined;
+          if (asset?.uri) {
+            setLabelPhoto(asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri);
+            void analyzeCapturedLabel(asset.base64);
           }
         },
       },
@@ -267,7 +312,8 @@ function ItemEditDialog({
       <SafeAreaView style={styles.overlay} edges={['top', 'bottom', 'left', 'right']}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar janela" />
 
-        <View style={styles.sheet}>
+        <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.sheet}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerIcon}>
@@ -546,6 +592,7 @@ function ItemEditDialog({
             )}
           </View>
         </View>
+        </KeyboardAvoidingView>
 
         {/* ======================================================== */}
         {/* 🔢 MODAL TECLADO NUMÉRICO (BRL & EAN) */}
@@ -723,6 +770,12 @@ const styles = createThemedStyles(theme => StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: theme.dialog.horizontalMargin,
     paddingVertical: 12,
+  },
+  keyboardArea: {
+    width: '100%',
+    maxWidth: theme.dialog.maxWidth,
+    maxHeight: '100%',
+    alignSelf: 'center',
   },
   sheet: {
     backgroundColor: theme.surface,

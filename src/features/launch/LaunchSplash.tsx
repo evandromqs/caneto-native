@@ -66,7 +66,7 @@ export function LaunchSplash({ dark }: LaunchSplashProps) {
 
   return (
     <View style={[styles.root, { backgroundColor }]}>
-      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
+      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
       <View style={[styles.glow, { backgroundColor: dark ? '#10245B' : '#DFE7FF' }]} />
       <Animated.View style={[styles.logoWrap, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
         <View style={[styles.logoCard, { backgroundColor: dark ? '#0F172A' : '#FFFFFF' }]}>

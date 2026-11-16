@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
+import { ConfirmModal } from '../../ui/ConfirmModal';
 import { AppButton, AppText, IconButton, SurfaceCard } from '../../ui/primitives';
 import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
@@ -28,6 +29,7 @@ export function ListManagerModal(props: ListManagerModalProps) {
 function ListManagerDialog({ lists, activeListId, onClose, onSelectList, onCreateList, onRenameList, onDuplicateList, onDeleteList }: ListManagerModalProps) {
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ShoppingList | null>(null);
   const [editingName, setEditingName] = useState('');
   const [busy, setBusy] = useState(false);
   const run = async (operation: () => MaybePromise) => {
@@ -44,10 +46,7 @@ function ListManagerDialog({ lists, activeListId, onClose, onSelectList, onCreat
     if (!name || !onRenameList) return;
     void run(async () => { await onRenameList(list, name); setEditingId(null); });
   };
-  const confirmDelete = (list: ShoppingList) => Alert.alert('Excluir lista?', `A lista “${list.name}” e seus itens serão removidos.`, [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: 'Excluir', style: 'destructive', onPress: () => void run(() => onDeleteList(list)) },
-  ]);
+  const confirmDelete = (list: ShoppingList) => setDeleteTarget(list);
 
   return <ModalSheet visible title="Minhas Listas" subtitle="Crie e organize listas para diferentes ocasiões" onClose={onClose} footer={<AppButton label="Fechar" variant="ghost" onPress={onClose} />}>
     <View style={styles.createRow}>
@@ -59,7 +58,7 @@ function ListManagerDialog({ lists, activeListId, onClose, onSelectList, onCreat
       const editing = list.id === editingId;
       const pending = list.items.filter(item => !item.checked).length;
       const owned = list.permission === 'owner';
-      return <SurfaceCard key={list.id} style={StyleSheet.flatten([styles.row, active && styles.activeRow])}>
+      return <SurfaceCard key={list.id} style={StyleSheet.flatten([styles.row, active && styles.activeRow]) || undefined}>
         {editing ? <View style={styles.renameRow}>
           <TextInput value={editingName} onChangeText={setEditingName} accessibilityLabel={`Novo nome de ${list.name}`} autoFocus onSubmitEditing={() => rename(list)} maxLength={80} style={styles.renameInput} />
           <IconButton label="Salvar nome" onPress={() => rename(list)} icon={<Ionicons name="checkmark" size={20} color={theme.blue} />} />
@@ -75,6 +74,20 @@ function ListManagerDialog({ lists, activeListId, onClose, onSelectList, onCreat
         </View>}
       </SurfaceCard>;
     })}
+    <ConfirmModal
+      visible={!!deleteTarget}
+      title="Excluir lista?"
+      message={deleteTarget ? `A lista “${deleteTarget.name}” e seus itens serão removidos.` : ''}
+      confirmLabel="Excluir lista"
+      danger
+      onCancel={() => setDeleteTarget(null)}
+      onConfirm={async () => {
+        if (!deleteTarget) return;
+        const target = deleteTarget;
+        setDeleteTarget(null);
+        await run(() => onDeleteList(target));
+      }}
+    />
   </ModalSheet>;
 }
 

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ModalSheet } from '../../ui/ModalSheet';
+import { ConfirmModal } from '../../ui/ConfirmModal';
 import { createThemedStyles, theme } from '../../ui/theme';
 import type { List } from '../../data';
 
@@ -24,6 +25,7 @@ export function ListActionsModal({ list, visible, ownerId, onClose, onRename, on
 function ListActionsDialog({ list, ownerId, onClose, onRename, onDuplicate, onDelete, onComplete, onShare }: Omit<ListProps, 'visible' | 'list'> & { list: List }) {
   const [name, setName] = useState(list.name);
   const [store, setStore] = useState(list.store_name ?? '');
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const editable = list.permission === 'editor';
   const own = list.user_id === ownerId;
   return <ModalSheet visible title="Editar Lista" subtitle="Nome, estabelecimento e ações" onClose={onClose}>
@@ -32,7 +34,19 @@ function ListActionsDialog({ list, ownerId, onClose, onRename, onDuplicate, onDe
     {own && <Action icon="share-social-outline" label="Compartilhar lista" onPress={onShare} />}
     <Action icon="copy-outline" label="Duplicar lista" onPress={onDuplicate} />
     {editable && <Action icon={list.is_completed ? 'refresh-outline' : 'checkmark-circle-outline'} label={list.is_completed ? 'Reabrir lista' : 'Finalizar compra'} onPress={onComplete} />}
-    {own && <Action icon="trash-outline" label="Excluir lista" danger onPress={() => Alert.alert('Excluir lista?', 'A lista e seus itens serão removidos.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => void onDelete() }])} />}
+    {own && <Action icon="trash-outline" label="Excluir lista" danger onPress={() => setConfirmDeleteOpen(true)} />}
+    <ConfirmModal
+      visible={confirmDeleteOpen}
+      title="Excluir lista?"
+      message={`A lista “${list.name}” e seus itens serão removidos.`}
+      confirmLabel="Excluir lista"
+      danger
+      onCancel={() => setConfirmDeleteOpen(false)}
+      onConfirm={async () => {
+        setConfirmDeleteOpen(false);
+        await onDelete();
+      }}
+    />
   </ModalSheet>;
 }
 

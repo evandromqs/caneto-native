@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppButton } from '../../ui/primitives';
@@ -26,6 +26,21 @@ export function CreateListModal(props: CreateListModalProps) {
 function CreateListDialog({ listCount, onClose, onCreate, onJoinList, onScanList }: CreateListModalProps) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', event => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const next = listCount + 1;
   const defaultName = `Lista ${numberWords[next] || next}`;
   const run = async (operation: () => MaybePromise) => {
@@ -35,13 +50,13 @@ function CreateListDialog({ listCount, onClose, onCreate, onJoinList, onScanList
     finally { setBusy(false); }
   };
   return <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-    <SafeAreaView style={styles.overlay} edges={['top', 'bottom', 'left', 'right']}>
+    <SafeAreaView style={[styles.overlay, keyboardHeight > 0 && { paddingBottom: keyboardHeight + 12 }]} edges={['top', 'bottom', 'left', 'right']}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar nova lista" />
       <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.panel} accessibilityViewIsModal accessibilityLabel="Nova lista">
           {(!!onScanList || !!onJoinList) && <View style={styles.shortcutRow}>
-            {!!onScanList && <AppButton label="Escanear lista" variant="secondary" icon={<Ionicons name="camera-outline" size={19} color={theme.blue} />} disabled={busy} style={styles.shortcut} onPress={() => void run(onScanList)} />}
-            {!!onJoinList && <AppButton label="Lista do Amigo" variant="secondary" icon={<Ionicons name="key-outline" size={19} color={theme.blue} />} disabled={busy} style={styles.shortcut} onPress={() => void run(onJoinList)} />}
+            {!!onScanList && <AppButton label="Escanear lista" variant="secondary" icon={<Ionicons name="camera-outline" size={17} color={theme.blue} />} disabled={busy} style={styles.shortcut} textStyle={styles.shortcutText} onPress={() => void run(onScanList)} />}
+            {!!onJoinList && <AppButton label="Lista do Amigo" variant="secondary" icon={<Ionicons name="key-outline" size={17} color={theme.blue} />} disabled={busy} style={styles.shortcut} textStyle={styles.shortcutText} onPress={() => void run(onJoinList)} />}
           </View>}
           <TextInput value={name} onChangeText={setName} placeholder={`Ex: ${defaultName}`} placeholderTextColor={theme.placeholder} accessibilityLabel="Nome da nova lista" autoFocus maxLength={80} returnKeyType="done" onSubmitEditing={() => void run(() => onCreate(name.trim() || defaultName))} style={styles.input} />
           <View style={styles.footer}>
@@ -58,8 +73,8 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.60)', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   keyboardArea: { width: '100%', maxWidth: 512, alignSelf: 'center' },
   panel: { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, borderRadius: 24, padding: 20, gap: 16, elevation: 16 },
-  shortcutRow: { flexDirection: 'row', gap: 10 }, shortcut: { flex: 1, minHeight: 52, paddingHorizontal: 7 },
+  shortcutRow: { flexDirection: 'row', gap: 10 }, shortcut: { flex: 1, minHeight: 50, paddingHorizontal: 10 }, shortcutText: { fontSize: 13, lineHeight: 18 },
   input: { minHeight: 54, borderRadius: 16, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, paddingHorizontal: 16, color: theme.ink, fontFamily: theme.font.semibold, fontSize: 16 },
   footer: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  footerButton: { flex: 1, minHeight: 48 },
+  footerButton: { flex: 1, minHeight: 48, paddingHorizontal: 12 },
 }));

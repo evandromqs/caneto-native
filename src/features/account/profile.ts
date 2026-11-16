@@ -7,7 +7,7 @@ export type Preferences = {
   highContrast?: boolean;
   soundEffects?: boolean;
   vibration?: boolean;
-  checkboxStyle?: 'circle' | 'switch';
+  checkboxStyle?: 'circle' | 'switch' | 'square';
   hasCompletedOnboarding?: boolean;
   [key: string]: unknown;
 };

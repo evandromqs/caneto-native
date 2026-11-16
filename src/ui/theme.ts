@@ -22,6 +22,7 @@ export const lightPalette = {
   success: '#059669',
   successSoft: '#ECFDF5',
   warning: '#D97706',
+  warningSoft: '#FFFBEB',
 };
 
 export const darkPalette = {
@@ -34,16 +35,17 @@ export const darkPalette = {
   surfaceMuted: '#1E293B',
   ink: '#F8FAFC',
   inkStrong: '#FFFFFF',
-  muted: '#94A3B8',
-  subtle: '#64748B',
-  placeholder: '#64748B',
+  muted: '#CBD5E1',
+  subtle: '#94A3B8',
+  placeholder: '#94A3B8',
   border: '#1E293B',
   borderStrong: '#334155',
-  danger: '#EF4444',
-  dangerSoft: 'rgba(239, 68, 68, 0.18)',
-  success: '#10B981',
-  successSoft: 'rgba(16, 185, 129, 0.18)',
-  warning: '#F59E0B',
+  danger: '#F87171',
+  dangerSoft: 'rgba(248, 113, 113, 0.18)',
+  success: '#34D399',
+  successSoft: 'rgba(52, 211, 153, 0.18)',
+  warning: '#FBBF24',
+  warningSoft: 'rgba(251, 191, 36, 0.16)',
 };
 
 export function getThemeColors(isDark: boolean) {
@@ -64,7 +66,7 @@ const fixedTokens = {
 } as const;
 
 type Palette = { [Key in keyof typeof lightPalette]: string };
-export type Theme = Palette & typeof fixedTokens;
+export type Theme = Palette & typeof fixedTokens & { fontScale: number; highContrast: boolean };
 
 /**
  * Shared live theme. Inline color reads always use the active palette, while
@@ -73,15 +75,35 @@ export type Theme = Palette & typeof fixedTokens;
 export const theme: Theme = {
   ...lightPalette,
   ...fixedTokens,
+  fontScale: 1,
+  highContrast: false,
 };
 
 let darkModeActive = false;
+let currentFontScale = 1;
+let currentHighContrast = false;
 const refreshStyleSheets = new Set<() => void>();
 
-export function setAppTheme(isDark: boolean): void {
-  if (darkModeActive === isDark) return;
+export function isDarkTheme(): boolean {
+  return darkModeActive;
+}
+
+export function setAppTheme(isDark: boolean, options?: { fontSize?: 'small' | 'normal' | 'large'; highContrast?: boolean }): void {
+  const nextScale = options?.fontSize === 'small' ? 0.92 : options?.fontSize === 'large' ? 1.1 : 1;
+  const nextContrast = options?.highContrast ?? currentHighContrast;
+  if (darkModeActive === isDark && currentFontScale === nextScale && currentHighContrast === nextContrast) return;
   darkModeActive = isDark;
-  Object.assign(theme, isDark ? darkPalette : lightPalette);
+  currentFontScale = nextScale;
+  currentHighContrast = nextContrast;
+  const base = isDark ? darkPalette : lightPalette;
+  Object.assign(theme, base, {
+    fontScale: nextScale,
+    highContrast: nextContrast,
+    ...(nextContrast ? {
+      border: isDark ? '#475569' : '#94A3B8',
+      borderStrong: isDark ? '#64748B' : '#64748B',
+    } : {}),
+  });
   refreshStyleSheets.forEach(refresh => refresh());
 }
 

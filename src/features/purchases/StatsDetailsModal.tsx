@@ -100,21 +100,13 @@ export function StatsDetailsModal({
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIcon}>
-                <Ionicons name="pie-chart-outline" size={20} color={theme.blue} />
+                <Ionicons name="pie-chart-outline" size={20} color={theme.blueLight} />
               </View>
               <View>
                 <Text style={styles.title}>Estatísticas de Compras</Text>
                 <Text style={styles.subtitle}>Métricas e histórico detalhado</Text>
               </View>
             </View>
-            <Pressable
-              onPress={onClose}
-              style={styles.closeBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Fechar"
-            >
-              <Ionicons name="close" size={20} color={theme.muted} />
-            </Pressable>
           </View>
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
@@ -129,7 +121,7 @@ export function StatsDetailsModal({
 
               <View style={styles.metricCard}>
                 <Text style={styles.metricLabel}>MÉDIA POR COMPRA</Text>
-                <Text style={[styles.metricValue, { color: theme.blue }]}>
+                <Text style={[styles.metricValue, { color: theme.blueLight }]}>
                   {currency(stats.averageSpent)}
                 </Text>
               </View>
@@ -219,7 +211,7 @@ export function StatsDetailsModal({
                                 : 'card-outline'
                             }
                             size={18}
-                            color={theme.blue}
+                            color={theme.blueLight}
                           />
                           <Text style={styles.paymentLabel}>{label}</Text>
                         </View>
@@ -293,7 +285,7 @@ export function StatsDetailsModal({
                                 <Ionicons
                                   name="refresh-outline"
                                   size={16}
-                                  color={theme.blue}
+                                  color={theme.blueLight}
                                 />
                                 <Text style={styles.recreateBtnText}>
                                   Criar lista novamente
@@ -585,7 +577,7 @@ const styles = createThemedStyles(theme =>
       borderTopColor: theme.border,
     },
     recreateBtnText: {
-      color: theme.blue,
+      color: theme.blueLight,
       fontFamily: theme.font.semibold,
       fontSize: 13,
     },
@@ -597,15 +589,15 @@ const styles = createThemedStyles(theme =>
     closeFooterBtn: {
       minHeight: 44,
       borderRadius: 12,
-      backgroundColor: theme.surfaceMuted,
+      backgroundColor: theme.dangerSoft,
       borderWidth: 1,
-      borderColor: theme.border,
+      borderColor: theme.danger,
       alignItems: 'center',
       justifyContent: 'center',
     },
     closeFooterBtnText: {
-      color: theme.ink,
-      fontFamily: theme.font.semibold,
+      color: theme.danger,
+      fontFamily: theme.font.bold,
       fontSize: 14,
     },
   })

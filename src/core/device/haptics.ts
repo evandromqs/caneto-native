@@ -1,13 +1,36 @@
+import { Platform, Vibration } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 export type HapticType = 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'warning' | 'error';
 
+let hapticsEnabledGlobal = true;
+
+export function setHapticsEnabled(enabled: boolean): void {
+  hapticsEnabledGlobal = enabled;
+}
+
+export function isHapticsEnabled(): boolean {
+  return hapticsEnabledGlobal;
+}
+
 /**
  * Dispara feedback tátil seguro respeitando a preferência do usuário.
+ * No Android combina expo-haptics com Vibration.vibrate para funcionar mesmo
+ * quando o feedback de toque do sistema está desativado.
  */
-export async function triggerHaptic(type: HapticType = 'selection', enabled = true): Promise<void> {
+export async function triggerHaptic(type: HapticType = 'selection', enabled: boolean = hapticsEnabledGlobal): Promise<void> {
   if (!enabled) return;
   try {
+    if (Platform.OS === 'android') {
+      const duration =
+        type === 'selection' ? 12
+        : type === 'light' ? 16
+        : type === 'medium' ? 24
+        : type === 'heavy' ? 38
+        : type === 'success' ? 28
+        : 32;
+      Vibration.vibrate(duration);
+    }
     switch (type) {
       case 'light':
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

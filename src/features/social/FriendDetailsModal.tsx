@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import type { SocialFriend } from './SocialScreen';
+import { supabase } from '../../supabase';
 import { CanetoIcon } from '../../ui/CanetoIcon';
 import { createThemedStyles, theme } from '../../ui/theme';
 
@@ -36,11 +37,44 @@ export function FriendDetailsModal({
 }: FriendDetailsModalProps) {
   const [tab, setTab] = useState<'lists' | 'share'>('lists');
   const [busyListId, setBusyListId] = useState<string | null>(null);
+  const [sharedListIds, setSharedListIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!visible || !friend) {
+      setSharedListIds([]);
+      return;
+    }
+    let active = true;
+    const cleanUsername = friend.username.toLowerCase().replace(/^@/, '');
+    void supabase
+      .from('list_shares')
+      .select('list_id,sender_id,recipient_id,recipient_username,status')
+      .neq('status', 'declined')
+      .then(({ data }) => {
+        if (!active || !data) return;
+        const matched = data
+          .filter(
+            row =>
+              row.sender_id === friend.id ||
+              row.recipient_id === friend.id ||
+              (cleanUsername && String(row.recipient_username || '').toLowerCase().replace(/^@/, '') === cleanUsername),
+          )
+          .map(row => String(row.list_id));
+        setSharedListIds([...new Set(matched)]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [visible, friend]);
 
   if (!visible || !friend) return null;
 
   const sharedLists = allLists.filter(
-    l => (l as any).sharedWith?.includes(friend.username) || (l as any).sharedWith?.includes(friend.id)
+    l =>
+      l.ownerId === friend.id ||
+      sharedListIds.includes(l.id) ||
+      (l as any).sharedWith?.includes(friend.username) ||
+      (l as any).sharedWith?.includes(friend.id),
   );
 
   const unsharedLists = allLists.filter(
@@ -72,6 +106,7 @@ export function FriendDetailsModal({
     setBusyListId(listId);
     try {
       await onShareListWithFriend(listId, friend);
+      setSharedListIds(prev => (prev.includes(listId) ? prev : [...prev, listId]));
       Alert.alert('Sucesso', 'Lista compartilhada com sucesso!');
     } catch {
       Alert.alert('Erro', 'Não foi possível compartilhar a lista.');

@@ -31,7 +31,7 @@ export function AppButton({ label, variant = 'primary', icon, loading = false, s
   textStyle?: TextStyle;
 }) {
   const inactive = disabled || loading;
-  const foreground = variant === 'primary' || variant === 'danger' ? theme.surface : variant === 'secondary' ? theme.ink : theme.blue;
+  const foreground = variant === 'primary' || variant === 'danger' ? '#FFFFFF' : variant === 'secondary' ? theme.ink : theme.blue;
   return <Pressable {...props} accessibilityRole="button" accessibilityLabel={props.accessibilityLabel ?? label} accessibilityState={{ disabled: inactive, busy: loading }} disabled={inactive} style={({ pressed }) => [styles.button, variant === 'primary' && styles.primaryButton, variant === 'secondary' && styles.secondaryButton, variant === 'danger' && styles.dangerButton, pressed && !inactive && styles.pressed, inactive && styles.disabled, style]}>
     {loading ? <ActivityIndicator color={foreground} size="small" /> : icon}
     <AppText style={[styles.buttonText, { color: foreground }, textStyle]}>{label}</AppText>
@@ -78,10 +78,10 @@ export function SegmentedTabs<T extends string>({ options, selected, onChange, s
 }
 
 const styles = createThemedStyles(theme => StyleSheet.create({
-  text: { color: theme.ink, fontFamily: theme.font.regular, fontSize: 16, lineHeight: 24 },
-  heading: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 20, lineHeight: 28 },
+  text: { color: theme.ink, fontFamily: theme.font.regular, fontSize: Math.round(16 * theme.fontScale), lineHeight: Math.round(24 * theme.fontScale) },
+  heading: { color: theme.ink, fontFamily: theme.font.bold, fontSize: Math.round(20 * theme.fontScale), lineHeight: Math.round(28 * theme.fontScale) },
   muted: { color: theme.muted },
-  caption: { color: theme.muted, fontSize: 14, lineHeight: 21 },
+  caption: { color: theme.muted, fontSize: Math.round(14 * theme.fontScale), lineHeight: Math.round(21 * theme.fontScale) },
   button: { minHeight: theme.touchTarget, borderRadius: theme.radius.xl, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center' },
   primaryButton: { backgroundColor: theme.blue, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.20)' },
   secondaryButton: { backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border },
@@ -101,5 +101,5 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   segment: { minHeight: theme.touchTarget, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 11, paddingHorizontal: 8 },
   segmentActive: { backgroundColor: theme.blue },
   segmentText: { fontFamily: theme.font.semibold, color: theme.muted, fontSize: 15, textAlign: 'center' },
-  segmentTextActive: { color: theme.surface },
+  segmentTextActive: { color: '#FFFFFF' },
 }));

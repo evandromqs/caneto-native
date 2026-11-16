@@ -59,6 +59,13 @@ export function assertCanScan(profile?: Parameters<typeof readScanQuota>[0]) {
   return quota;
 }
 
+export function recordLocalAiScan() {
+  const current = readScanQuota();
+  const next = current.scansUsed + 1;
+  if (typeof localStorage !== 'undefined') localStorage.setItem(USED_KEY, String(next));
+  return readScanQuota();
+}
+
 export async function consumeAiScan(userId: string) {
   const current = readScanQuota();
   const next = current.scansUsed + 1;

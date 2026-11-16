@@ -1,9 +1,10 @@
 import { supabase } from '../../supabase';
 import { patchLists } from '../../data';
+import { CANETO_API } from '../../core/api';
 import { syncWrite } from '../../core/sync/outbox';
 import { categoryLabel, normalizeStoreText, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
 
-const API_ORIGIN = (process.env.EXPO_PUBLIC_CANETO_API_URL || 'https://www.caneto.online').replace(/\/$/, '');
+const API_ORIGIN = CANETO_API;
 
 type PlaceResponse = { stores?: unknown[]; store?: unknown; error?: string };
 type CommunityRow = { id: string; name: string; category: string; latitude: number; longitude: number };
@@ -106,13 +107,52 @@ export async function searchStores(query = '', category: StoreCategory = 'all', 
     }
     return category === 'all' || store.category === category;
   });
-  const matches = [...new Map([...filteredRemote, ...filteredSubmitted].map(store => [store.id, store])).values()];
-  if (!catalogOnly || !matches.length) return matches;
-  const { data: priced, error: priceError } = await supabase.from('store_prices')
-    .select('store_id').in('store_id', matches.map(store => store.id));
+  const matches = [...new Map([...filteredRemote, ...filteredSubmitted].map(store => [store.id, store])).values()]
+    .filter(store => !/giant food/i.test(store.name) && !/ashburn/i.test(store.address));
+  if (!catalogOnly) return matches;
+
+  const { data: priced, error: priceError } = await supabase
+    .from('store_prices')
+    .select('store_id, store_name')
+    .order('observed_at', { ascending: false })
+    .limit(200);
   if (priceError) throw priceError;
-  const withProducts = new Set((priced ?? []).map(row => row.store_id));
-  return matches.filter(store => withProducts.has(store.id));
+
+  const pricedRows = (priced ?? []) as Array<{ store_id?: string | null; store_name?: string | null }>;
+  const withProducts = new Set(pricedRows.map(row => row.store_id).filter((id): id is string => !!id));
+  const matchById = new Map(matches.map(store => [store.id, store]));
+  const result = new Map<string, Store>();
+
+  for (const store of matches) {
+    if (withProducts.has(store.id)) result.set(store.id, store);
+  }
+
+  for (const row of pricedRows) {
+    const sid = row.store_id?.trim();
+    const sname = row.store_name?.trim();
+    if (!sid || !sname || result.has(sid)) continue;
+    if (/giant food/i.test(sname)) continue;
+    if (q && !normalizeStoreText(sname).includes(normalizeStoreText(q))) continue;
+    const existing = matchById.get(sid);
+    if (existing) {
+      result.set(sid, existing);
+      continue;
+    }
+    const isCommunityUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid);
+    if (category === 'all' || !isCommunityUuid) {
+      result.set(sid, {
+        id: sid,
+        placeId: isCommunityUuid ? undefined : sid,
+        name: sname,
+        category: 'other',
+        categoryLabel: 'Loja',
+        address: '',
+        source: isCommunityUuid ? 'community' : 'google',
+      });
+    }
+  }
+
+  return [...result.values()];
 }
 
 export async function loadStoreDetails(store: Store): Promise<Store> {
