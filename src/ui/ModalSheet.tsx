@@ -3,6 +3,8 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { createThemedStyles, theme } from './theme';
+import { triggerHaptic } from '../core/device/haptics';
+import { playSound } from '../core/device/sounds';
 
 type Props = {
   visible: boolean;
@@ -25,12 +27,12 @@ export function ModalSheet({ visible, title, subtitle, onClose, children, footer
         <View style={styles.sheet} accessibilityViewIsModal accessibilityLabel={title} testID={testID}>
           <View style={[styles.header, centerTitle && { justifyContent: 'center' }]}>
             {!!headerIcon && <View style={styles.headerIcon}>{headerIcon}</View>}
-            <View style={{ flex: 1, alignItems: centerTitle ? 'center' : 'flex-start' }}>
+            <View style={[!centerTitle && styles.heading, { flex: 1, alignItems: centerTitle ? 'center' : 'flex-start' }]}>
               <Text style={[styles.title, centerTitle && { textAlign: 'center' }]}>{title}</Text>
               {!!subtitle && <Text style={[styles.subtitle, centerTitle && { textAlign: 'center' }]}>{subtitle}</Text>}
             </View>
             {!hideCloseButton && (
-              <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar janela"><Ionicons name="close" size={22} color={theme.muted} /></Pressable>
+              <Pressable onPress={() => { void triggerHaptic('selection'); void playSound('tap'); onClose(); }} style={styles.close} accessibilityRole="button" accessibilityLabel="Fechar janela"><Ionicons name="close" size={22} color={theme.muted} /></Pressable>
             )}
           </View>
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{children}</ScrollView>
@@ -48,8 +50,8 @@ const styles = createThemedStyles(theme => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderColor: theme.border },
   headerIcon: { width: 42, height: 42, borderRadius: 15, marginRight: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.blueSoft, borderWidth: 1, borderColor: theme.border },
   heading: { flex: 1, paddingRight: 8 },
-  title: { color: theme.ink, fontFamily: theme.font.bold, fontSize: 20, lineHeight: 28 },
-  subtitle: { color: theme.muted, fontFamily: theme.font.regular, fontSize: 14, lineHeight: 21 },
+  title: { color: theme.ink, fontFamily: theme.font.bold, fontSize: Math.round(20 * theme.fontScale), lineHeight: Math.round(28 * theme.fontScale) },
+  subtitle: { color: theme.muted, fontFamily: theme.font.regular, fontSize: Math.round(14 * theme.fontScale), lineHeight: Math.round(21 * theme.fontScale) },
   close: { width: theme.touchTarget, height: theme.touchTarget, borderRadius: theme.radius.lg, alignItems: 'center', justifyContent: 'center' },
   body: { padding: 18, paddingBottom: 20 },
   footer: { borderTopWidth: 1, borderTopColor: theme.border, padding: 16 },

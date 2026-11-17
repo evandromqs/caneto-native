@@ -219,7 +219,6 @@ export function ShoppingListScreen({
 
   const rows: Row[] = pendingRows;
   const estimatedTotal = list.items.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
-  const purchasedTotal = purchased.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0);
   const referenceTotal = list.detectedItemsTotal ?? estimatedTotal;
   const pendingReceipt = list.isCompleted && (list.pendingReceipt || (!list.receiptPhotoUrl && !list.receiptQrCode && !list.receiptKey));
   const totalDifference = list.totalSpent !== undefined && Math.abs(list.totalSpent - referenceTotal) >= 0.01;
@@ -238,43 +237,6 @@ export function ShoppingListScreen({
     void triggerHaptic('selection', vibrationEnabled);
     void playSound(item.checked ? 'uncheck' : 'check', soundEffectsEnabled);
     await onToggle(item);
-  };
-
-  const handleUncheckAll = () => {
-    if (!onUncheckAll || purchased.length === 0) return;
-    Alert.alert(
-      'Desmarcar todos',
-      'Deseja desmarcar todos os itens comprados desta lista?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Desmarcar todos',
-          onPress: () => {
-            void triggerHaptic('medium', vibrationEnabled);
-            void onUncheckAll();
-          },
-        },
-      ]
-    );
-  };
-
-  const handleClearPurchased = () => {
-    if (!onClearPurchased || purchased.length === 0) return;
-    Alert.alert(
-      'Limpar comprados',
-      `Deseja mover ${purchased.length} item(ns) comprados para a lixeira?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Mover para lixeira',
-          style: 'destructive',
-          onPress: () => {
-            void triggerHaptic('warning', vibrationEnabled);
-            void onClearPurchased();
-          },
-        },
-      ]
-    );
   };
 
   return <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

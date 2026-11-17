@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CANETO_API } from '../../core/api';
 import { parseNfceQrCode } from '../../core/scanner/nfce';
@@ -34,12 +33,6 @@ export type CaptureResult = {
 
 type Mode = 'ean' | 'product' | 'invoice';
 
-const modes: { id: Mode; label: string; icon: keyof typeof Ionicons.glyphMap; hint: string }[] = [
-  { id: 'ean', label: 'Código', icon: 'barcode-outline', hint: 'Aponte para o código de barras do produto' },
-  { id: 'product', label: 'Produto', icon: 'cube-outline', hint: 'Centralize o produto e toque no botão de captura' },
-  { id: 'invoice', label: 'Nota', icon: 'receipt-outline', hint: 'Aponte para o QR Code da nota fiscal' },
-];
-
 export function ScannerModal({ visible, userId, purpose = 'items', onClose, onConfirm }: {
   visible: boolean;
   userId: string;
@@ -58,7 +51,7 @@ function ScannerDialog({ userId, purpose, onClose, onConfirm }: {
 }) {
   const camera = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const [mode, setMode] = useState<Mode>(purpose === 'receipt' ? 'invoice' : 'ean');
+  const [mode] = useState<Mode>(purpose === 'receipt' ? 'invoice' : 'ean');
   const [torch, setTorch] = useState(false);
   const [quota, setQuota] = useState<ScanQuota | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,10 +66,6 @@ function ScannerDialog({ userId, purpose, onClose, onConfirm }: {
   const remember = (result: CaptureResult) => {
     setDraft(result);
     setError('');
-  };
-
-  const updateDraftItem = (index: number, patch: Partial<CapturedItem>) => {
-    setDraft(current => current ? { ...current, items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) } : current);
   };
 
   const lookupEan = async (code: string) => {

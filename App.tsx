@@ -131,12 +131,14 @@ export default function App() {
   const fontsReady = fontsLoaded || !!fontError || fontTimeout;
 
   useEffect(() => {
-    if ((!starting && fontsReady && launchReady) || fontTimeout) {
+    if (fontsReady) {
       void SplashScreen.hideAsync().catch(() => {});
     }
-  }, [starting, fontsReady, launchReady, fontTimeout]);
+  }, [fontsReady]);
 
   const selectTab = useCallback((nextTab: TabId) => {
+    void triggerHaptic('selection');
+    void playSound('tap');
     tabTranslateX.stopAnimation();
     tabOpacity.stopAnimation();
 

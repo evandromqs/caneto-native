@@ -51,7 +51,7 @@ const buildMapHtml = (initialDark: boolean) => `<!DOCTYPE html>
 </script></body></html>`;
 
 export function OsmMap({ user, markers, onSelect }: { user?: Coordinates | null; markers: MapMarker[]; onSelect?: (id: string) => void }) {
-  const view = useRef<WebView<{}> | null>(null);
+  const view = useRef<WebView<Record<string, unknown>> | null>(null);
   const ready = useRef(false);
   const dark = isDarkTheme();
   const initialHtml = useMemo(() => buildMapHtml(isDarkTheme()), []);

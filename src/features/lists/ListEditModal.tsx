@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ShoppingList } from '../../core/models/caneto';
 import { ModalSheet } from '../../ui/ModalSheet';
-import { AppButton } from '../../ui/primitives';
 import { createThemedStyles, theme } from '../../ui/theme';
 import { getErrorMessage } from '../../ui/error';
 
@@ -43,21 +42,15 @@ function ListEditDialog({
   const [name, setName] = useState(list.name);
   const [editingName, setEditingName] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [store, setStore] = useState(list.storeName ?? '');
-  const [isShared, setIsShared] = useState(list.permission !== 'owner');
-  const [ownerName, setOwnerName] = useState(list.permission !== 'owner' ? 'Outro usuário' : '');
-  const [isMergingOpen, setIsMergingOpen] = useState(false);
-  const [selectedSourceListId, setSelectedSourceListId] = useState<string>('');
-  const [deleteSourceAfterMerge, setDeleteSourceAfterMerge] = useState(false);
+  const [store] = useState(list.storeName ?? '');
+  const [isShared] = useState(list.permission !== 'owner');
+  const [ownerName] = useState(list.permission !== 'owner' ? 'Outro usuário' : '');
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const own = list.permission === 'owner';
   const canEdit = own || list.permission === 'editor';
-
-  const otherOpenLists = lists.filter(l => !l.isCompleted && l.id !== list.id);
-  const selectedSource = otherOpenLists.find(l => l.id === selectedSourceListId);
 
   const run = async (operation: () => MaybePromise, close = false) => {
     if (busy) return;
@@ -90,16 +83,6 @@ function ListEditDialog({
       true,
     );
   };
-
-  const handleConfirmMerge = async () => {
-    if (!selectedSourceListId || !onMergeLists) return;
-    await run(async () => {
-      await onMergeLists(list.id, selectedSourceListId, deleteSourceAfterMerge);
-      setIsMergingOpen(false);
-    }, true);
-  };
-
-  const confirmDelete = () => setConfirmingDelete(true);
 
   const footer = (
     <View style={styles.footerVertical}>

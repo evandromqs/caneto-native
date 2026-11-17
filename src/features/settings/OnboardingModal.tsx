@@ -99,7 +99,7 @@ export function OnboardingModal({
         .neq('id', userId)
         .limit(50);
       const taken = new Set(
-        ((data ?? []) as Array<{ username?: string | null }>)
+        ((data ?? []) as { username?: string | null }[])
           .map(row => (row.username ?? '').toLowerCase())
           .filter(Boolean)
       );
@@ -131,6 +131,7 @@ export function OnboardingModal({
     } else {
       setUsername('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const handleNameChange = (value: string) => {

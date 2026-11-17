@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "4035664531",
+    "project_id": "caneto-app",
+    "storage_bucket": "caneto-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:4035664531:android:afe21ae1fe52479ebfcb66",
+        "android_client_info": {
+          "package_name": "com.evandromqs.caneto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDysKXQM0WvAw6JrSW2aYZrbpt--YWDWbU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

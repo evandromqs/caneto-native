@@ -78,7 +78,7 @@ export async function playSound(type: SoundType = 'tap', enabled: boolean = soun
 }
 
 export function SoundEngine() {
-  const ref = useRef<WebView<{}> | null>(null);
+  const ref = useRef<WebView<Record<string, unknown>> | null>(null);
   useEffect(() => {
     webViewPlayBridge = (type: SoundType) => {
       ref.current?.injectJavaScript(`window.canetoPlaySound && window.canetoPlaySound(${JSON.stringify(type)}); true;`);

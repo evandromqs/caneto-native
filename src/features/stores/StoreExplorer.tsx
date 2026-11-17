@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import { createThemedStyles, theme } from '../../ui/theme';
 import { CanetoIcon } from '../../ui/CanetoIcon';
 import { categoryFor } from '../../core/categories';
 import { getErrorMessage } from '../../ui/error';
-import { STORE_CATEGORIES, normalizeStoreText, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
+import { normalizeStoreText, type Coordinates, type Store, type StoreCategory, type StorePrice } from './model';
 import { linkStoreToList, loadStoreDetails, loadStorePrices, searchStores } from './repository';
 import { OsmMap } from './OsmMap';
 import { NewStoreModal } from './NewStoreModal';
@@ -118,7 +118,7 @@ export function StoreExplorer({ onSelectStore, onAddProduct, availableLists, onI
   const activeCoordinates = coordinates ?? device.coords ?? undefined;
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
-  const [category, setCategory] = useState<StoreCategory>('all');
+  const [category] = useState<StoreCategory>('all');
   const [stores, setStores] = useState<Store[]>(() => readCachedStores(mode));
   const [enrichedById, setEnrichedById] = useState<Record<string, Store>>(() => readCachedStoreDetails());
   const [selected, setSelected] = useState<Store | null>(null);
@@ -204,7 +204,6 @@ export function StoreExplorer({ onSelectStore, onAddProduct, availableLists, onI
   }, [featured, enrichedById]);
 
   const searchControl = <View style={[styles.searchBox, mode === 'picker' && styles.searchBoxPicker]}><Ionicons name="search-outline" size={19} color={theme.muted} /><TextInput style={styles.searchInput} placeholder="Buscar locais por perto" placeholderTextColor={theme.muted} value={query} onChangeText={setQuery} returnKeyType="search" accessibilityLabel="Buscar locais por perto" />{!!query && <Pressable accessibilityLabel="Limpar busca" onPress={() => setQuery('')}><Ionicons name="close" size={18} color={theme.muted} /></Pressable>}</View>;
-  const categoryControl = <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>{STORE_CATEGORIES.map(entry => <Pressable key={entry.id} style={[styles.chip, category === entry.id && styles.chipActive]} onPress={() => setCategory(entry.id)} accessibilityRole="button" accessibilityState={{ selected: category === entry.id }}><CanetoIcon name={entry.id} size={19} color={category === entry.id ? 'white' : theme.ink} /><Text style={[styles.chipText, category === entry.id && styles.chipTextActive]}>{entry.label}</Text></Pressable>)}</ScrollView>;
   const markers = featured.flatMap(store => store.lat != null && store.lon != null ? [{ id: store.id, name: store.name, lat: store.lat, lng: store.lon }] : []);
   return <View style={mode === 'picker' ? styles.pickerExplorer : styles.explorer}>
     {mode === 'explore' && <OsmMap user={activeCoordinates} markers={markers} onSelect={id => setSelected(featured.find(store => store.id === id) ?? null)} />}

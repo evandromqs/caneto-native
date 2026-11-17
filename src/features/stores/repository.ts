@@ -118,7 +118,7 @@ export async function searchStores(query = '', category: StoreCategory = 'all', 
     .limit(200);
   if (priceError) throw priceError;
 
-  const pricedRows = (priced ?? []) as Array<{ store_id?: string | null; store_name?: string | null }>;
+  const pricedRows = (priced ?? []) as { store_id?: string | null; store_name?: string | null }[];
   const withProducts = new Set(pricedRows.map(row => row.store_id).filter((id): id is string => !!id));
   const matchById = new Map(matches.map(store => [store.id, store]));
   const result = new Map<string, Store>();

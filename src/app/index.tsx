@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Appearance, Pressable, StyleSheet, Text, View } from 'react-native';
 import App from '../../App';
+import { getThemeColors } from '../ui/theme';
 
 type BoundaryState = { error: Error | null };
 
@@ -17,10 +18,11 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, BoundaryState>
 
   render() {
     if (!this.state.error) return this.props.children;
-    return <View style={styles.root}>
-      <Text style={styles.title}>Não foi possível abrir o Caneto</Text>
-      <Text style={styles.message}>{this.state.error.message}</Text>
-      <Pressable style={styles.button} accessibilityRole="button" onPress={() => this.setState({ error: null })}>
+    const palette = getThemeColors(Appearance.getColorScheme() === 'dark');
+    return <View style={[styles.root, { backgroundColor: palette.background }]}>
+      <Text style={[styles.title, { color: palette.ink }]}>Não foi possível abrir o Caneto</Text>
+      <Text style={[styles.message, { color: palette.muted }]}>{this.state.error.message}</Text>
+      <Pressable style={[styles.button, { backgroundColor: palette.blue }]} accessibilityRole="button" onPress={() => this.setState({ error: null })}>
         <Text style={styles.buttonText}>Tentar novamente</Text>
       </Pressable>
     </View>;

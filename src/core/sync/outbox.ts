@@ -43,19 +43,24 @@ function writeOps(ops: WriteOp[]) {
   emit();
 }
 
+function pendingCount(): number {
+  return readOps().filter(op => !boundUserId || op.userId === boundUserId).length;
+}
+
 function readMeta(): SyncMeta {
+  const pending = pendingCount();
   try {
     const parsed = JSON.parse(localStorage.getItem(META_KEY) || '') as Partial<SyncMeta>;
-    return { online: parsed.online !== false, pending: readOps().length, lastError: parsed.lastError ?? null, flushing };
+    return { online: parsed.online !== false, pending, lastError: parsed.lastError ?? null, flushing };
   } catch {
-    return { online: true, pending: readOps().length, lastError: null, flushing };
+    return { online: true, pending, lastError: null, flushing };
   }
 }
 
 function emit() {
   const meta = readMeta();
   localStorage.setItem(META_KEY, JSON.stringify({ online: meta.online, lastError: meta.lastError }));
-  for (const listener of listeners) listener({ ...meta, pending: readOps().length, flushing });
+  for (const listener of listeners) listener({ ...meta, pending: pendingCount(), flushing });
 }
 
 export function bindSyncUser(userId: string) {
@@ -68,7 +73,7 @@ export function currentSyncUserId() {
 }
 
 export function getSyncSnapshot(): SyncMeta {
-  return { ...readMeta(), pending: readOps().length, flushing };
+  return { ...readMeta(), pending: pendingCount(), flushing };
 }
 
 export function subscribeSync(listener: Listener) {
@@ -97,8 +102,10 @@ export async function isOnline(): Promise<boolean> {
     const state = await Network.getNetworkStateAsync();
     const online = !!state.isConnected && state.isInternetReachable !== false;
     const meta = readMeta();
-    localStorage.setItem(META_KEY, JSON.stringify({ online, lastError: meta.lastError }));
-    emit();
+    if (online !== meta.online) {
+      localStorage.setItem(META_KEY, JSON.stringify({ online, lastError: meta.lastError }));
+      emit();
+    }
     return online;
   } catch {
     return true;
@@ -148,15 +155,20 @@ export async function flushOutbox(): Promise<void> {
           continue;
         }
         const message = error instanceof Error ? error.message : 'Falha ao sincronizar';
+        const nextAttempts = op.attempts + 1;
+        if (!isOfflineError(error) && nextAttempts >= 5) {
+          // Drop permanently failing operation after 5 non-network attempts to prevent head-of-line blocking.
+          writeOps(readOps().filter(row => row.id !== op.id));
+          localStorage.setItem(META_KEY, JSON.stringify({ online: true, lastError: message }));
+          continue;
+        }
         writeOps(readOps().map(row => row.id === op.id
-          ? { ...row, attempts: row.attempts + 1, lastError: message } : row));
+          ? { ...row, attempts: nextAttempts, lastError: message } : row));
         if (isOfflineError(error)) {
           localStorage.setItem(META_KEY, JSON.stringify({ online: false, lastError: message }));
         } else {
           localStorage.setItem(META_KEY, JSON.stringify({ online: true, lastError: message }));
         }
-        // Preserve order and every pending operation, including permanent errors.
-        // A later operation may depend on this insert.
         return;
       }
       writeOps(readOps().filter(row => row.id !== op.id));
