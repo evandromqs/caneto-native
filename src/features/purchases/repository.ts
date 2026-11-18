@@ -103,7 +103,41 @@ export async function attachReceipt(list: List, userId: string, receipt: Purchas
 export async function loadHistory(userId: string): Promise<Purchase[]> {
   const { data, error } = await supabase.from('purchase_history').select('id,list_id,list_name,completed_at,total_items,total_spent,detected_items_total,payment_method,pending_receipt,store_name,store_address,store_cnpj,receipt_photo_url,receipt_qr_code,items').eq('user_id', userId).order('completed_at', { ascending: false }).limit(100);
   if (error) throw new Error(getErrorMessage(error));
-  return (data ?? []) as Purchase[];
+  return (data ?? []).map((row: Record<string, unknown>) => {
+    let parsedItems: Purchase['items'] = [];
+    if (Array.isArray(row.items)) {
+      parsedItems = row.items as Purchase['items'];
+    } else if (typeof row.items === 'string') {
+      try {
+        const parsed = JSON.parse(row.items);
+        if (Array.isArray(parsed)) parsedItems = parsed;
+      } catch {}
+    }
+    return {
+      ...row,
+      id: String(row.id ?? ''),
+      list_id: String(row.list_id ?? ''),
+      list_name: String(row.list_name ?? 'Compra'),
+      completed_at: String(row.completed_at ?? ''),
+      total_items: Number(row.total_items ?? parsedItems.length ?? 0),
+      total_spent: Number(row.total_spent ?? 0),
+      payment_method: row.payment_method ? String(row.payment_method) : undefined,
+      listId: String(row.list_id ?? ''),
+      listName: String(row.list_name ?? 'Compra'),
+      completedAt: String(row.completed_at ?? ''),
+      totalItems: Number(row.total_items ?? parsedItems.length ?? 0),
+      totalSpent: Number(row.total_spent ?? 0),
+      detectedItemsTotal: row.detected_items_total != null ? Number(row.detected_items_total) : undefined,
+      paymentMethod: row.payment_method ? String(row.payment_method) : undefined,
+      pendingReceipt: Boolean(row.pending_receipt),
+      storeName: row.store_name ? String(row.store_name) : undefined,
+      storeAddress: row.store_address ? String(row.store_address) : undefined,
+      storeCnpj: row.store_cnpj ? String(row.store_cnpj) : undefined,
+      receiptPhotoUrl: row.receipt_photo_url ? String(row.receipt_photo_url) : undefined,
+      receiptQrCode: row.receipt_qr_code ? String(row.receipt_qr_code) : undefined,
+      items: parsedItems,
+    } as unknown as Purchase;
+  });
 }
 
 export async function recreatePurchase(

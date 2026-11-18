@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmModal } from '../../ui/ConfirmModal';
 import { ModalSheet } from '../../ui/ModalSheet';
@@ -364,31 +364,13 @@ export function SettingsScreen(props: SettingsScreenProps) {
 
       <Card>
         <SectionHeader icon="cloud-download-outline">Atualizações e Sobre</SectionHeader>
-        {props.onlineUpdate && (
-          <View style={styles.aboutRow}>
-            <View style={styles.flex}>
-              <Text style={[styles.toggleTitle, { fontSize: scaled(13) }]}>
-                Atualização online {props.onlineUpdate.number === 'Base' ? 'Base' : `#${props.onlineUpdate.number}`}
-              </Text>
-              <Text style={[styles.toggleDescription, { fontSize: scaled(11) }]}>{props.onlineUpdate.message}</Text>
-              <Text style={styles.updateMeta}>
-                Canal {props.onlineUpdate.channel} · Runtime {props.onlineUpdate.runtimeVersion}
-                {props.onlineUpdate.shortId ? ` · ID ${props.onlineUpdate.shortId}` : ''}
-              </Text>
-            </View>
-            {props.onCheckOnlineUpdate && (
-              <Pressable style={[styles.proButton, props.checkingOnlineUpdate && styles.disabled]} onPress={props.onCheckOnlineUpdate} disabled={props.checkingOnlineUpdate} accessibilityRole="button">
-                {props.checkingOnlineUpdate ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="refresh-outline" size={15} color="#FFFFFF" />}
-                <Text style={styles.proButtonText}>{props.checkingOnlineUpdate ? 'Buscando' : 'Atualizar'}</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
         <View style={styles.aboutRow}>
           <View style={styles.flex}>
-            <Text style={[styles.toggleTitle, { fontSize: scaled(13) }]}>Caneto™ v{props.version || '1.0.3'}</Text>
+            <Text style={[styles.toggleTitle, { fontSize: scaled(13) }]}>
+              Caneto™ v{props.version || '1.2.5'}.{props.onlineUpdate?.number && props.onlineUpdate.number !== 'Base' ? props.onlineUpdate.number : '0'}
+            </Text>
             <Text style={[styles.toggleDescription, { fontSize: scaled(11) }]}>
-              {props.buildDate ? `Atualizado em ${props.buildDate}` : 'Bibliotecas, permissões e recursos nativos'}
+              {props.buildDate ? `Atualizado em ${props.buildDate}` : 'Atualizações automáticas ativadas'}
             </Text>
           </View>
           {props.onCheckUpdate && (
@@ -398,18 +380,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
             </Pressable>
           )}
         </View>
-        {props.onOpenChangelog && (
-          <View style={styles.aboutRow}>
-            <View style={styles.flex}>
-              <Text style={[styles.toggleTitle, { fontSize: scaled(13) }]}>Novidades da versão</Text>
-              <Text style={[styles.toggleDescription, { fontSize: scaled(11) }]}>Veja melhorias e correções recentes</Text>
-            </View>
-            <Pressable style={styles.secondaryBadge} onPress={props.onOpenChangelog} accessibilityRole="button">
-              <Text style={styles.secondaryBadgeText}>Novidades</Text>
-              <Ionicons name="arrow-forward" size={14} color={theme.ink} />
-            </Pressable>
-          </View>
-        )}
         {props.onOpenOnboarding && (
           <View style={styles.aboutRow}>
             <View style={styles.flex}>

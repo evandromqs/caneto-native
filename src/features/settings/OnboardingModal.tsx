@@ -19,6 +19,7 @@ import { supabase } from '../../supabase';
 import { CanetoIcon } from '../../ui/CanetoIcon';
 import { getErrorMessage } from '../../ui/error';
 import { createThemedStyles, theme } from '../../ui/theme';
+import { triggerHaptic } from '../../core/device/haptics';
 import type { SettingsPreferences } from './SettingsScreen';
 
 const TOTAL_STEPS = 7;
@@ -211,21 +212,26 @@ export function OnboardingModal({
       statusBarTranslucent
       navigationBarTranslucent
     >
-      <SafeAreaView style={[styles.overlay, keyboardHeight > 0 && { paddingBottom: keyboardHeight + 12 }]} edges={['top', 'bottom', 'left', 'right']}>
+      <SafeAreaView style={[styles.overlay, keyboardHeight > 0 && { paddingBottom: keyboardHeight }]} edges={['top', 'bottom', 'left', 'right']}>
         <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.dialog}>
             <View style={styles.topBar}>
-              <View style={styles.stepDots}>
-                {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-                  <View key={i} style={[styles.dot, i === step && styles.dotActive]} />
-                ))}
+              <View style={styles.topSide} />
+              <View style={styles.topCenter}>
+                <View style={styles.stepDots}>
+                  {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+                    <View key={i} style={[styles.dot, i === step && styles.dotActive, i < step && styles.dotCompleted]} />
+                  ))}
+                </View>
+                <Text style={styles.stepCounter}>Passo {step + 1} de {TOTAL_STEPS}</Text>
               </View>
-              <Text style={styles.stepCounter}>Passo {step + 1} de {TOTAL_STEPS}</Text>
-              {!required && (
-                <Pressable onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fechar">
-                  <Ionicons name="close" size={20} color={theme.muted} />
-                </Pressable>
-              )}
+              <View style={[styles.topSide, { alignItems: 'flex-end' }]}>
+                {!required && (
+                  <Pressable onPress={() => { void triggerHaptic('selection'); onClose(); }} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fechar">
+                    <Ionicons name="close" size={20} color={theme.muted} />
+                  </Pressable>
+                )}
+              </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -446,12 +452,12 @@ export function OnboardingModal({
 
             <View style={styles.footer}>
               {step > 0 && (
-                <Pressable onPress={() => { setError(''); setStep(s => (s - 1) as 0 | 1 | 2 | 3 | 4 | 5 | 6); }} disabled={saving} style={styles.backBtn}>
+                <Pressable onPress={() => { void triggerHaptic('selection'); setError(''); setStep(s => (s - 1) as 0 | 1 | 2 | 3 | 4 | 5 | 6); }} disabled={saving} style={styles.backBtn}>
                   <Ionicons name="arrow-back" size={18} color={theme.ink} />
                   <Text style={styles.backText}>Voltar</Text>
                 </Pressable>
               )}
-              <Pressable onPress={() => void handleNext()} disabled={saving} style={[styles.nextBtn, saving && { opacity: 0.65 }]}>
+              <Pressable onPress={() => { void triggerHaptic('selection'); void handleNext(); }} disabled={saving} style={[styles.nextBtn, saving && { opacity: 0.65 }]}>
                 <Text style={styles.nextText}>{saving ? 'Salvando...' : step === 6 ? 'Começar a usar' : 'Continuar'}</Text>
                 {!saving && <Ionicons name={step === 6 ? 'checkmark' : 'arrow-forward'} size={18} color="#FFFFFF" />}
               </Pressable>
@@ -478,13 +484,16 @@ function FeatureRow({ icon, title, description }: { icon: keyof typeof Ionicons.
 }
 
 const styles = createThemedStyles(theme => StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: theme.dialog.backdrop, justifyContent: 'center', paddingHorizontal: theme.dialog.horizontalMargin, paddingVertical: 16 },
-  keyboard: { width: '100%', maxWidth: theme.dialog.maxWidth, alignSelf: 'center', maxHeight: '92%' },
-  dialog: { width: '100%', maxHeight: '100%', backgroundColor: theme.surface, borderRadius: theme.radius.xxl, borderWidth: 1, borderColor: theme.border, overflow: 'hidden' },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: theme.border },
-  stepDots: { flexDirection: 'row', gap: 5 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.borderStrong },
-  dotActive: { width: 18, backgroundColor: theme.blue },
+  overlay: { flex: 1, backgroundColor: theme.background },
+  keyboard: { flex: 1, width: '100%' },
+  dialog: { flex: 1, width: '100%', backgroundColor: theme.background },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.surface },
+  topSide: { width: 40 },
+  topCenter: { flex: 1, alignItems: 'center', gap: 6 },
+  stepDots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.borderStrong },
+  dotCompleted: { backgroundColor: theme.blueLight },
+  dotActive: { width: 22, height: 8, borderRadius: 4, backgroundColor: theme.blue },
   stepCounter: { color: theme.muted, fontFamily: theme.font.semibold, fontSize: 12 },
   closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: theme.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
   scrollBody: { padding: 18 },

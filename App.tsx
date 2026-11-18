@@ -52,6 +52,7 @@ import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, movePurchasedItemsToTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
+import { ConfirmModal } from './src/ui/ConfirmModal';
 import { checkAndApplyOnlineUpdate, checkAppUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
 import { UpdateModal } from './src/features/updater/UpdateModal';
 import { ScannerModal } from './src/features/capture/ScannerModal';
@@ -103,6 +104,7 @@ export default function App() {
   const [trashItems, setTrashItems] = useState<DeletedShoppingItem[]>([]);
   const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [apkStatusMessage, setApkStatusMessage] = useState<string | null>(null);
   const [checkingOnlineUpdate, setCheckingOnlineUpdate] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -135,6 +137,11 @@ export default function App() {
       void SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsReady]);
+
+  useEffect(() => {
+    if (IS_EXPO_GO) return;
+    void checkAndApplyOnlineUpdate().catch(() => {});
+  }, []);
 
   const selectTab = useCallback((nextTab: TabId) => {
     void triggerHaptic('selection');
@@ -551,7 +558,7 @@ export default function App() {
     </View>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 
-  return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'left', 'right']}><SoundEngine /><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />{!!syncText && <Text style={styles.sync}>{syncText}</Text>}{selected?.domain ? <ShoppingListScreen
+  return <SafeAreaView style={[styles.root, { backgroundColor: isDark ? '#080D1A' : '#F8FAFC' }]} edges={['top', 'left', 'right']}><SoundEngine /><StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />{selected?.domain ? <ShoppingListScreen
     list={selected.domain}
     busy={busy}
     onBack={leaveSelectedList}
@@ -761,7 +768,7 @@ export default function App() {
         onOpenOnboarding={() => setOnboardingOpen(true)}
         onCheckUpdate={async () => {
           if (IS_EXPO_GO) {
-            Alert.alert('Atualização', 'A atualização por APK está disponível no Caneto instalado, fora do Expo Go.');
+            setApkStatusMessage('A atualização por APK está disponível no Caneto instalado, fora do Expo Go.');
             return;
           }
           try {
@@ -770,12 +777,12 @@ export default function App() {
               setUpdateInfo(res);
               setUpdateModalVisible(true);
             } else if (res) {
-              Alert.alert('Atualização', `O aplicativo já está na versão mais recente (v${CURRENT_APP_VERSION}).`);
+              setApkStatusMessage(`O aplicativo já está na versão mais recente (v${CURRENT_APP_VERSION}).`);
             } else {
-              Alert.alert('Atualização', 'Ainda não há uma versão publicada no GitHub.');
+              setApkStatusMessage('Ainda não há uma versão publicada no GitHub.');
             }
           } catch {
-            Alert.alert('Atualização', 'Não foi possível verificar a versão no GitHub. Verifique a conexão e tente novamente.');
+            setApkStatusMessage('Não foi possível verificar a versão no GitHub. Verifique a conexão e tente novamente.');
           }
         }}
         onChangePreferences={async next => {
@@ -918,6 +925,14 @@ export default function App() {
       }}
     />
     <UpdateModal visible={updateModalVisible} updateInfo={updateInfo} onClose={() => setUpdateModalVisible(false)} />
+    <ConfirmModal
+      visible={!!apkStatusMessage}
+      title="Versão do APK"
+      message={apkStatusMessage ?? ''}
+      confirmLabel="Entendi"
+      onCancel={() => setApkStatusMessage(null)}
+      onConfirm={() => setApkStatusMessage(null)}
+    />
     <FeedbackModal visible={feedbackOpen} onClose={() => setFeedbackOpen(false)} userId={session.user.id} email={session.user.email} name={profile?.displayName || undefined} />
     <ScannerModal
       visible={scannerOpen && !!selectedId}

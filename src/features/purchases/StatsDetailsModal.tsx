@@ -326,6 +326,7 @@ const styles = createThemedStyles(theme =>
     container: {
       width: '100%',
       maxWidth: 500,
+      height: '88%',
       maxHeight: '90%',
       backgroundColor: theme.surface,
       borderRadius: 24,
