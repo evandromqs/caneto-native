@@ -52,16 +52,13 @@ import { updatePreferences } from './src/features/account/profile';
 import { TrashModal } from './src/features/cart/TrashModal';
 import { addTrashItem, clearTrash, deleteItemFromDatabase, getValidTrash, movePurchasedItemsToTrash, removeTrashItem, restoreItemToDatabase } from './src/features/cart/trashRepository';
 import { getErrorMessage } from './src/ui/error';
-import { ConfirmModal } from './src/ui/ConfirmModal';
-import { checkAndApplyOnlineUpdate, checkAppUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO, type AppReleaseInfo } from './src/features/updater/updaterService';
-import { UpdateModal } from './src/features/updater/UpdateModal';
+import { checkAndApplyOnlineUpdate, CURRENT_APP_VERSION, CURRENT_OTA_UPDATE, IS_EXPO_GO } from './src/features/updater/updaterService';
 import { ScannerModal } from './src/features/capture/ScannerModal';
 import { bindSyncUser, currentSyncUserId, flushOutbox, subscribeSync, watchConnectivity } from './src/core/sync/outbox';
 import { readListCache, subscribeListCache } from './src/core/sync/listCache';
 import { subscribeShoppingChanges } from './src/core/sync/realtime';
 import { LaunchSplash } from './src/features/launch/LaunchSplash';
 import { CANETO_API } from './src/core/api';
-import * as WebBrowser from 'expo-web-browser';
 import * as SplashScreen from 'expo-splash-screen';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -102,9 +99,6 @@ export default function App() {
   const [modalItemId, setModalItemId] = useState<string | null>(null);
   const [deletedToastItem, setDeletedToastItem] = useState<ShoppingItem | null>(null);
   const [trashItems, setTrashItems] = useState<DeletedShoppingItem[]>([]);
-  const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
-  const [updateModalVisible, setUpdateModalVisible] = useState(false);
-  const [apkStatusMessage, setApkStatusMessage] = useState<string | null>(null);
   const [checkingOnlineUpdate, setCheckingOnlineUpdate] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -116,7 +110,6 @@ export default function App() {
   const [onboardingRequired, setOnboardingRequired] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<SocialFriend | null>(null);
-  const [syncText, setSyncText] = useState('');
   const pendingDeletedItemRef = useRef<{ item: ShoppingItem; listId: string } | null>(null);
   const [tabTranslateX] = useState(() => new Animated.Value(0));
   const [tabOpacity] = useState(() => new Animated.Value(1));
@@ -191,15 +184,6 @@ export default function App() {
   }), [session?.user.id]);
 
   useEffect(() => {
-    checkAppUpdate().then(info => {
-      if (info?.hasUpdate) {
-        setUpdateInfo(info);
-        setUpdateModalVisible(true);
-      }
-    }).catch(console.warn);
-  }, []);
-
-  useEffect(() => {
     if (selectedId) setTrashItems(getValidTrash(selectedId));
     else setTrashItems([]);
   }, [selectedId, lists]);
@@ -222,12 +206,7 @@ export default function App() {
       subscription.unsubscribe();
     };
   }, []);
-  useEffect(() => subscribeSync(meta => {
-    if (!meta.online) setSyncText(meta.pending ? `Sem conexão · ${meta.pending} alteração(ões) na fila` : 'Sem conexão · mostrando o que já está neste aparelho');
-    else if (meta.lastError && meta.pending) setSyncText(`${meta.pending} alteração(ões) aguardando sincronização: ${meta.lastError}`);
-    else if (meta.flushing || meta.pending) setSyncText(meta.pending ? `Sincronizando ${meta.pending} alteração(ões) com o Supabase` : 'Sincronizando com o Supabase');
-    else setSyncText(meta.lastError ? `Sincronização pendente: ${meta.lastError}` : '');
-  }), []);
+  useEffect(() => subscribeSync(() => {}), []);
   useEffect(() => {
     if (!session) return;
     bindSyncUser(session.user.id);
@@ -381,14 +360,13 @@ export default function App() {
       if (statsOpen) { setStatsOpen(false); return true; }
       if (selectedFriend) { setSelectedFriend(null); return true; }
       if (feedbackOpen) { setFeedbackOpen(false); return true; }
-      if (updateModalVisible) { setUpdateModalVisible(false); return true; }
       if (modal) { setModal(null); return true; }
       if (selectedId) { leaveSelectedList(); return true; }
       if (tab !== 'lists') { setTab('lists'); return true; }
       return false;
     });
     return () => subscription.remove();
-  }, [session, modal, selectedId, lists, tab, batchImportOpen, changelogOpen, onboardingOpen, statsOpen, selectedFriend, feedbackOpen, updateModalVisible]);
+  }, [session, modal, selectedId, lists, tab, batchImportOpen, changelogOpen, onboardingOpen, statsOpen, selectedFriend, feedbackOpen]);
 
   function leaveSelectedList() {
     if (pendingDeletedItemRef.current) void handleCommitDelete(pendingDeletedItemRef.current.item);
@@ -721,32 +699,6 @@ export default function App() {
       {tab === 'settings' && <SettingsScreen
         profile={{ email: session.user.email, displayName: profile?.displayName, username: profile?.username, avatarUrl: profile?.avatarUrl }}
         plan={profile ? { tier: profile.planTier ?? 'free', scansUsed: profile.aiScansUsedThisMonth ?? 0, scansLimit: profile.aiScansLimit ?? 0 } : undefined}
-        onSelectPlanCycle={profile?.planTier === 'pro' ? undefined : async (cycle: 'monthly' | 'yearly') => {
-          try {
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            let activeSession = currentSession ?? session;
-            if (!activeSession?.access_token) {
-              const { data: refreshed } = await supabase.auth.refreshSession();
-              activeSession = refreshed.session ?? activeSession;
-            }
-            if (!activeSession?.access_token) throw new Error('Faça login novamente para assinar o Caneto Pro.');
-            const res = await fetch(`${CANETO_API}/api/stripe/checkout`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${activeSession.access_token}`,
-              },
-              body: JSON.stringify({ cycle }),
-            });
-            const body = await res.json() as { url?: string; error?: string };
-            if (!res.ok || !body.url) throw new Error(body.error || 'Não foi possível iniciar o checkout da Stripe.');
-            await WebBrowser.openBrowserAsync(body.url);
-            const nextProfile = await canetoData.profile(session.user.id);
-            if (nextProfile) setProfile(nextProfile);
-          } catch (err) {
-            errorMessage(err);
-          }
-        }}
         purchases={{ totalSpent: purchases.reduce((sum, purchase) => sum + purchase.totalSpent, 0), totalPurchases: purchases.length, totalItems: purchases.reduce((sum, purchase) => sum + purchase.totalItems, 0) }}
         preferences={preferences}
         version={CURRENT_APP_VERSION}
@@ -771,25 +723,6 @@ export default function App() {
         onOpenFeedback={() => setFeedbackOpen(true)}
         onOpenChangelog={() => setChangelogOpen(true)}
         onOpenOnboarding={() => setOnboardingOpen(true)}
-        onCheckUpdate={async () => {
-          if (IS_EXPO_GO) {
-            setApkStatusMessage('A atualização por APK está disponível no Caneto instalado, fora do Expo Go.');
-            return;
-          }
-          try {
-            const res = await checkAppUpdate();
-            if (res?.hasUpdate) {
-              setUpdateInfo(res);
-              setUpdateModalVisible(true);
-            } else if (res) {
-              setApkStatusMessage(`O aplicativo já está na versão mais recente (v${CURRENT_APP_VERSION}).`);
-            } else {
-              setApkStatusMessage('Ainda não há uma versão publicada no GitHub.');
-            }
-          } catch {
-            setApkStatusMessage('Não foi possível verificar a versão no GitHub. Verifique a conexão e tente novamente.');
-          }
-        }}
         onChangePreferences={async next => {
           if (next.notifications && !preferences.notifications) {
             await requestNotificationPermission();
@@ -813,6 +746,26 @@ export default function App() {
           void supabase.auth.signOut().then(({ error }) => {
             if (error) { bindSyncUser(session.user.id); errorMessage(error); }
           });
+        }}
+        onDeleteAccount={async () => {
+          try {
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            const token = currentSession?.access_token ?? session.access_token;
+            if (token) {
+              await fetch(`${CANETO_API}/api/account/delete`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+              }).catch(() => {});
+            }
+            await supabase.from('lists').delete().eq('user_id', session.user.id);
+            await supabase.from('purchase_history').delete().eq('user_id', session.user.id);
+            await supabase.from('profiles').delete().eq('id', session.user.id);
+            bindSyncUser('');
+            await supabase.auth.signOut();
+            Alert.alert('Conta excluída', 'Seus dados foram removidos e sua sessão foi encerrada.');
+          } catch (error) {
+            errorMessage(error);
+          }
         }}
       />}
     </Animated.View>
@@ -928,15 +881,6 @@ export default function App() {
         clearTrash(targetListId);
         setTrashItems([]);
       }}
-    />
-    <UpdateModal visible={updateModalVisible} updateInfo={updateInfo} onClose={() => setUpdateModalVisible(false)} />
-    <ConfirmModal
-      visible={!!apkStatusMessage}
-      title="Versão do APK"
-      message={apkStatusMessage ?? ''}
-      confirmLabel="Entendi"
-      onCancel={() => setApkStatusMessage(null)}
-      onConfirm={() => setApkStatusMessage(null)}
     />
     <FeedbackModal visible={feedbackOpen} onClose={() => setFeedbackOpen(false)} userId={session.user.id} email={session.user.email} name={profile?.displayName || undefined} />
     <ScannerModal

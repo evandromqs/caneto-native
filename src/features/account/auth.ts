@@ -55,23 +55,31 @@ export async function completeAccountRedirect(url: string): Promise<AccountRedir
   return { kind: 'ignored' };
 }
 
+const GOOGLE_WEB_CLIENT_ID = '4035664531-a5qlg5i6np8fe1hu6ai0u6q9v8fp9lu7.apps.googleusercontent.com';
+
 export async function signInWithGoogle(): Promise<GoogleSignInResult> {
   if (isExpoGo) throw new DevelopmentBuildRequiredError();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: accountRedirectUri,
-      skipBrowserRedirect: true,
-      queryParams: { prompt: 'select_account' },
-    },
-  });
-  if (error) throw error;
-  if (!data.url) throw new Error('O Google não retornou um endereço de autenticação.');
-  const result = await WebBrowser.openAuthSessionAsync(data.url, accountRedirectUri);
-  if (result.type !== 'success') return { status: 'cancelled' };
-  const completed = await completeAccountRedirect(result.url);
-  if (completed.kind === 'ignored') throw new Error('O Google não retornou uma sessão válida.');
-  return { status: 'signed-in', userId: completed.userId };
+  const { GoogleSignin, statusCodes } = await import('@react-native-google-signin/google-signin');
+  GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
+  try {
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const response = await GoogleSignin.signIn();
+    const idToken = response.data?.idToken;
+    if (!idToken) return { status: 'cancelled' };
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: idToken,
+    });
+    if (error) throw error;
+    if (!data.user) throw new Error('O Google não retornou uma sessão válida.');
+    return { status: 'signed-in', userId: data.user.id };
+  } catch (error: unknown) {
+    const code = (error as { code?: string })?.code;
+    if (code === statusCodes.SIGN_IN_CANCELLED) {
+      return { status: 'cancelled' };
+    }
+    throw error;
+  }
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {

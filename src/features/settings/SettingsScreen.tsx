@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmModal } from '../../ui/ConfirmModal';
 import { ModalSheet } from '../../ui/ModalSheet';
@@ -42,6 +42,7 @@ export type SettingsScreenProps = {
   onCheckUpdate?: () => void;
   onOpenFeedback?: () => void;
   onSignOut?: () => void;
+  onDeleteAccount?: () => Promise<void> | void;
 };
 
 const scaled = (size: number) => Math.round(size * theme.fontScale);
@@ -131,8 +132,9 @@ const brl = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency
 export function SettingsScreen(props: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const [planBusy, setPlanBusy] = useState<'monthly' | 'yearly' | null>(null);
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const preference = props.preferences;
   const update = <K extends keyof SettingsPreferences>(key: K, value: SettingsPreferences[K]) => {
@@ -147,25 +149,11 @@ export function SettingsScreen(props: SettingsScreenProps) {
   const name = props.profile.displayName || props.profile.email?.split('@')[0] || 'Usuário Caneto';
   const plan = props.plan;
   const percent = plan && plan.scansLimit > 0 ? Math.min(100, Math.max(0, plan.scansUsed / plan.scansLimit * 100)) : 0;
-  const canOpenPlan = plan && plan.tier !== 'pro' && !!(props.onSelectPlanCycle || props.onOpenPlan);
+  const canOpenPlan = !!plan && plan.tier !== 'pro';
 
   const handlePlanPress = () => {
-    if (props.onSelectPlanCycle) {
-      setPlanModalOpen(true);
-    } else {
-      props.onOpenPlan?.();
-    }
-  };
-
-  const chooseCycle = async (cycle: 'monthly' | 'yearly') => {
-    if (!props.onSelectPlanCycle) return;
-    setPlanBusy(cycle);
-    try {
-      await props.onSelectPlanCycle(cycle);
-      setPlanModalOpen(false);
-    } finally {
-      setPlanBusy(null);
-    }
+    void triggerHaptic('selection');
+    setPlanModalOpen(true);
   };
 
   return (
@@ -386,17 +374,42 @@ export function SettingsScreen(props: SettingsScreenProps) {
               <Text style={[styles.toggleTitle, { fontSize: scaled(13) }]}>Guia de boas-vindas</Text>
               <Text style={[styles.toggleDescription, { fontSize: scaled(11) }]}>Aprenda a aproveitar todos os recursos</Text>
             </View>
-            <Pressable style={styles.secondaryBadge} onPress={props.onOpenOnboarding} accessibilityRole="button">
+            <Pressable style={styles.secondaryBadge} onPress={() => { void triggerHaptic('selection'); props.onOpenOnboarding?.(); }} accessibilityRole="button">
               <Text style={styles.secondaryBadgeText}>Abrir guia</Text>
             </Pressable>
           </View>
         )}
+        <View style={styles.aboutRow}>
+          <View style={styles.flex}>
+            <Text style={[styles.toggleTitle, { fontSize: scaled(13) }]}>Política de Privacidade</Text>
+            <Text style={[styles.toggleDescription, { fontSize: scaled(11) }]}>Como protegemos seus dados</Text>
+          </View>
+          <Pressable style={styles.secondaryBadge} onPress={() => { void triggerHaptic('selection'); void Linking.openURL('https://caneto.online/privacidade'); }} accessibilityRole="button">
+            <Text style={styles.secondaryBadgeText}>Abrir</Text>
+          </Pressable>
+        </View>
+        <View style={styles.aboutRow}>
+          <View style={styles.flex}>
+            <Text style={[styles.toggleTitle, { fontSize: scaled(13) }]}>Termos de Uso</Text>
+            <Text style={[styles.toggleDescription, { fontSize: scaled(11) }]}>Regras de utilização do Caneto</Text>
+          </View>
+          <Pressable style={styles.secondaryBadge} onPress={() => { void triggerHaptic('selection'); void Linking.openURL('https://caneto.online/termos'); }} accessibilityRole="button">
+            <Text style={styles.secondaryBadgeText}>Abrir</Text>
+          </Pressable>
+        </View>
       </Card>
 
       {props.onSignOut && (
-        <Pressable style={styles.signOut} onPress={() => setSignOutConfirmOpen(true)} accessibilityRole="button">
+        <Pressable style={styles.signOut} onPress={() => { void triggerHaptic('selection'); setSignOutConfirmOpen(true); }} accessibilityRole="button">
           <Ionicons name="log-out-outline" size={18} color={theme.danger} />
           <Text style={styles.signOutText}>Sair da conta</Text>
+        </Pressable>
+      )}
+
+      {props.onDeleteAccount && (
+        <Pressable style={styles.signOut} onPress={() => { void triggerHaptic('warning'); setDeleteConfirmOpen(true); }} accessibilityRole="button">
+          <Ionicons name="trash-outline" size={18} color={theme.danger} />
+          <Text style={styles.signOutText}>Excluir minha conta</Text>
         </Pressable>
       )}
 
@@ -407,48 +420,32 @@ export function SettingsScreen(props: SettingsScreenProps) {
 
       <ModalSheet
         visible={planModalOpen}
-        title="Assinar Caneto Pro"
+        title="Caneto Pro"
         hideCloseButton
         centerTitle
-        onClose={() => { if (!planBusy) setPlanModalOpen(false); }}
+        onClose={() => setPlanModalOpen(false)}
         footer={
           <View style={styles.planModalFooter}>
             <Pressable
-              style={[styles.planOptionPrimary, !!planBusy && styles.disabled]}
-              disabled={!!planBusy}
-              onPress={() => void chooseCycle('yearly')}
+              style={styles.planOptionPrimary}
+              onPress={() => { void triggerHaptic('selection'); setPlanModalOpen(false); }}
               accessibilityRole="button"
             >
-              <Ionicons name="sparkles-outline" size={17} color="#FFFFFF" />
-              <Text style={styles.planOptionPrimaryText}>{planBusy === 'yearly' ? 'Abrindo...' : 'Plano Anual (Econômico)'}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.planOptionSecondary, !!planBusy && styles.disabled]}
-              disabled={!!planBusy}
-              onPress={() => void chooseCycle('monthly')}
-              accessibilityRole="button"
-            >
-              <Text style={styles.planOptionSecondaryText}>{planBusy === 'monthly' ? 'Abrindo...' : 'Plano Mensal'}</Text>
-            </Pressable>
-            <Pressable
-              style={styles.planCancelBtn}
-              disabled={!!planBusy}
-              onPress={() => setPlanModalOpen(false)}
-              accessibilityRole="button"
-            >
-              <Text style={styles.planCancelText}>Cancelar</Text>
+              <Text style={styles.planOptionPrimaryText}>Entendi</Text>
             </Pressable>
           </View>
         }
       >
         <View style={styles.planModalBody}>
           <Image source={require('./assets/caneto_pro_icon.webp')} style={styles.planModalIcon} resizeMode="contain" />
-          <Text style={styles.planModalLead}>Desbloqueie até 150 capturas inteligentes com IA por mês.</Text>
+          <Text style={styles.planModalLead}>
+            No plano gratuito você conta com 10 leituras inteligentes com IA por mês.
+          </Text>
           <View style={styles.planBenefits}>
             {[
+              'Até 150 leituras por mês no plano Pro',
               'Leitura rápida de notas fiscais (NFC-e)',
               'Reconhecimento de produtos por câmera',
-              'Catálogo colaborativo e histórico completo',
             ].map(benefit => (
               <View key={benefit} style={styles.planBenefitRow}>
                 <Ionicons name="checkmark-circle" size={17} color={theme.success} />
@@ -456,6 +453,9 @@ export function SettingsScreen(props: SettingsScreenProps) {
               </View>
             ))}
           </View>
+          <Text style={[styles.toggleDescription, { textAlign: 'center', marginTop: 4, fontSize: scaled(12) }]}>
+            Para assinar ou gerenciar o Caneto Pro, acesse caneto.online pelo navegador usando esta mesma conta.
+          </Text>
         </View>
       </ModalSheet>
 
@@ -470,6 +470,24 @@ export function SettingsScreen(props: SettingsScreenProps) {
         onConfirm={() => {
           setSignOutConfirmOpen(false);
           props.onSignOut?.();
+        }}
+      />
+
+      <ConfirmModal
+        visible={deleteConfirmOpen}
+        title="Excluir conta permanentemente?"
+        message="Suas listas, histórico e perfil serão removidos permanentemente e você será desconectado."
+        confirmLabel={deletingAccount ? 'Excluindo...' : 'Excluir conta'}
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => { if (!deletingAccount) setDeleteConfirmOpen(false); }}
+        onConfirm={() => {
+          if (deletingAccount) return;
+          setDeletingAccount(true);
+          void Promise.resolve(props.onDeleteAccount?.()).finally(() => {
+            setDeletingAccount(false);
+            setDeleteConfirmOpen(false);
+          });
         }}
       />
     </ScrollView>

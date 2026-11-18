@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createThemedStyles, theme } from '../../ui/theme';
+import type { ApkDownloadProgress, AppReleaseInfo } from './updaterService';
+import { downloadAndInstallApk, isNewerVersion, openApkDownload } from './updaterService';
 
 function formatReleaseNotes(raw: string): string {
   return raw
@@ -21,8 +23,6 @@ function formatReleaseNotes(raw: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
-import type { ApkDownloadProgress, AppReleaseInfo } from './updaterService';
-import { downloadAndInstallApk, isNewerVersion, openApkDownload } from './updaterService';
 
 interface UpdateModalProps {
   visible: boolean;

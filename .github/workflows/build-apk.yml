@@ -228,7 +228,7 @@ jobs:
           sha256sum "build-release/${{ steps.versioning.outputs.apk_name }}" > "build-release/${{ steps.versioning.outputs.apk_name }}.sha256"
           AAB_FILE=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
           if [ -n "$AAB_FILE" ]; then
-            cp "$AAB_FILE" "build-release/caneto-${{ steps.versioning.outputs.release_tag }}.aab"
+            cp "$AAB_FILE" "build-release/caneto-${{ steps.versioning.outputs.tag }}.aab"
           fi
           echo "Prepared asset at: build-release/${{ steps.versioning.outputs.apk_name }}"
           ls -la build-release
