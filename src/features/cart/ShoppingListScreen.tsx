@@ -147,7 +147,7 @@ export function ShoppingListScreen({
   const [recordingAudio, setRecordingAudio] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const [cartExpanded, setCartExpanded] = useState(false);
+  const [cartExpanded, setCartExpanded] = useState(list.isCompleted);
   const [refreshing, setRefreshing] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [receiptExpanded, setReceiptExpanded] = useState(false);
@@ -330,7 +330,7 @@ export function ShoppingListScreen({
           {receiptExpanded && <View style={styles.receiptBody}>{!!list.receiptPhotoUrl && <Image source={{ uri: list.receiptPhotoUrl }} style={styles.receiptImage} resizeMode="contain" accessibilityLabel="Foto da nota fiscal" />}{!!list.receiptQrCode && <AppText tone="caption" selectable>QR da nota: {list.receiptQrCode}</AppText>}</View>}
         </View>}
       </>}
-      ListEmptyComponent={<View style={styles.empty}>
+      ListEmptyComponent={list.isCompleted && purchased.length > 0 ? undefined : <View style={styles.empty}>
         <View style={styles.emptyIcon}>
           <CanetoIcon name="cart" size={26} color={theme.blue} />
         </View>
