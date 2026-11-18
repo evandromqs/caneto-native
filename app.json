@@ -2,7 +2,7 @@
   "expo": {
     "name": "Caneto",
     "slug": "caneto-native",
-    "version": "1.2.4",
+    "version": "1.2.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
     "android": {
       "package": "com.evandromqs.caneto",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 16,
+      "versionCode": 17,
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "VIBRATE",

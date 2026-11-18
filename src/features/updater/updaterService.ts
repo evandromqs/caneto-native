@@ -67,17 +67,17 @@ async function fetchWithTimeout(url: string, headers: Record<string, string>): P
 
 async function fetchLatestRelease(): Promise<Response> {
   try {
-    const response = await fetchWithTimeout(UPDATE_ENDPOINT, { Accept: 'application/json' });
+    const response = await fetchWithTimeout(GITHUB_RELEASE_ENDPOINT, {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'CanetoNativeApp',
+      'X-GitHub-Api-Version': '2022-11-28',
+    });
     if (response.ok) return response;
   } catch (error) {
-    console.warn('[Updater] Endpoint cacheado indisponível; usando fallback do GitHub.', error);
+    console.warn('[Updater] GitHub indisponível; usando endpoint cacheado.', error);
   }
 
-  return fetchWithTimeout(GITHUB_RELEASE_ENDPOINT, {
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'CanetoNativeApp',
-    'X-GitHub-Api-Version': '2022-11-28',
-  });
+  return fetchWithTimeout(UPDATE_ENDPOINT, { Accept: 'application/json' });
 }
 
 function versionParts(version: string): number[] | null {
