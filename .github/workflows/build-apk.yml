@@ -79,6 +79,16 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Accept Android SDK Licenses
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
@@ -145,6 +155,24 @@ jobs:
             echo 'org.gradle.parallel=false' >> "$GRADLE_PROPERTIES"
           fi
 
+          if grep -q '^reactNativeArchitectures=' "$GRADLE_PROPERTIES"; then
+            sed -i 's|^reactNativeArchitectures=.*|reactNativeArchitectures=arm64-v8a|' "$GRADLE_PROPERTIES"
+          else
+            echo 'reactNativeArchitectures=arm64-v8a' >> "$GRADLE_PROPERTIES"
+          fi
+
+          if grep -q '^android.enableProguardInReleaseBuilds=' "$GRADLE_PROPERTIES"; then
+            sed -i 's|^android.enableProguardInReleaseBuilds=.*|android.enableProguardInReleaseBuilds=true|' "$GRADLE_PROPERTIES"
+          else
+            echo 'android.enableProguardInReleaseBuilds=true' >> "$GRADLE_PROPERTIES"
+          fi
+
+          if grep -q '^android.enableShrinkResourcesInReleaseBuilds=' "$GRADLE_PROPERTIES"; then
+            sed -i 's|^android.enableShrinkResourcesInReleaseBuilds=.*|android.enableShrinkResourcesInReleaseBuilds=true|' "$GRADLE_PROPERTIES"
+          else
+            echo 'android.enableShrinkResourcesInReleaseBuilds=true' >> "$GRADLE_PROPERTIES"
+          fi
+
           if grep -q '^kotlin.daemon.jvmargs=' "$GRADLE_PROPERTIES"; then
             sed -i 's|^kotlin.daemon.jvmargs=.*|kotlin.daemon.jvmargs=-Xmx768m|' "$GRADLE_PROPERTIES"
           else
@@ -190,7 +218,7 @@ jobs:
           EXPO_PUBLIC_CANETO_API_URL: ${{ env.EXPO_PUBLIC_CANETO_API_URL }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace --max-workers=1 -x lintVitalAnalyzeRelease
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace --max-workers=1 -x lintVitalAnalyzeRelease
 
       - name: Prepare APK Asset
         run: |
@@ -208,6 +236,10 @@ jobs:
           test -n "$APKSIGNER"
           "$APKSIGNER" verify "build-release/${{ steps.versioning.outputs.apk_name }}"
           sha256sum "build-release/${{ steps.versioning.outputs.apk_name }}" > "build-release/${{ steps.versioning.outputs.apk_name }}.sha256"
+          AAB_FILE=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          if [ -n "$AAB_FILE" ]; then
+            cp "$AAB_FILE" "build-release/caneto-${{ steps.versioning.outputs.release_tag }}.aab"
+          fi
           echo "Prepared asset at: build-release/${{ steps.versioning.outputs.apk_name }}"
           ls -la build-release
 
@@ -218,6 +250,7 @@ jobs:
           path: |
             build-release/${{ steps.versioning.outputs.apk_name }}
             build-release/${{ steps.versioning.outputs.apk_name }}.sha256
+            build-release/*.aab
           retention-days: 30
 
       - name: Publish GitHub Release
@@ -247,10 +280,10 @@ jobs:
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists. Uploading new asset..."
-            gh release upload "$TAG" "$APK_PATH" "$CHECKSUM_PATH" --clobber
+            gh release upload "$TAG" "$APK_PATH" "$CHECKSUM_PATH" build-release/*.aab --clobber
           else
             echo "Creating new GitHub Release $TAG..."
-            gh release create "$TAG" "$APK_PATH" "$CHECKSUM_PATH" \
+            gh release create "$TAG" "$APK_PATH" "$CHECKSUM_PATH" build-release/*.aab \
               --title "Caneto $TAG (versionCode ${{ steps.versioning.outputs.version_code }})" \
               --notes "$RELEASE_NOTES" \
               --latest

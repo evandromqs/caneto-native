@@ -10,7 +10,17 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { createThemedStyles, theme } from '../../ui/theme';
+
+function formatReleaseNotes(raw: string): string {
+  return raw
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 import type { ApkDownloadProgress, AppReleaseInfo } from './updaterService';
 import { downloadAndInstallApk, isNewerVersion, openApkDownload } from './updaterService';
 
@@ -85,8 +95,10 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
       transparent
       animationType="fade"
       onRequestClose={handleClose}
+      statusBarTranslucent
+      navigationBarTranslucent
     >
-      <View style={styles.overlay}>
+      <SafeAreaView style={styles.overlay} edges={['top', 'bottom', 'left', 'right']}>
         <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Header Icon */}
           <View style={styles.iconCircle}>
@@ -117,7 +129,7 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
             <View style={styles.notesBox}>
               <Text style={styles.notesTitle}>O que há de novo:</Text>
               <View>
-                <Text style={styles.notesText}>{updateInfo.releaseNotes}</Text>
+                <Text style={styles.notesText}>{formatReleaseNotes(updateInfo.releaseNotes)}</Text>
               </View>
             </View>
           ) : null}
@@ -195,7 +207,7 @@ export function UpdateModal({ visible, updateInfo, onClose }: UpdateModalProps) 
             )}
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }

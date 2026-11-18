@@ -122,7 +122,7 @@ export default function App() {
   const [tabOpacity] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
-    const timer = setTimeout(() => setLaunchReady(true), 900);
+    const timer = setTimeout(() => setLaunchReady(true), 2000);
     const fontTimer = setTimeout(() => setFontTimeout(true), 2200);
     return () => {
       clearTimeout(timer);
