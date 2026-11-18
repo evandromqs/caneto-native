@@ -130,7 +130,9 @@ export function StoreExplorer({ onSelectStore, onAddProduct, availableLists, onI
 
   useEffect(() => {
     let active = true;
-    const cacheKey = `${mode}:${category}:${query.trim().toLowerCase()}`;
+    const latKey = lat != null ? lat.toFixed(3) : '';
+    const lngKey = lng != null ? lng.toFixed(3) : '';
+    const cacheKey = `${mode}:${category}:${query.trim().toLowerCase()}:${latKey}:${lngKey}`;
     const cachedQuery = storeQueryCache.get(cacheKey);
     if (cachedQuery && Date.now() - cachedQuery.at < STORE_QUERY_TTL_MS) {
       setStores(cachedQuery.rows);

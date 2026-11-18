@@ -46,7 +46,10 @@ const buildMapHtml = (initialDark: boolean) => `<!DOCTYPE html>
       });
     });
     const center = data.user || (data.markers && data.markers[0]);
-    if (center) map.setView([center.lat, center.lng], data.user ? 15 : 13);
+    if (center && !window.__canetoInitialCentered) {
+      window.__canetoInitialCentered = true;
+      map.setView([center.lat, center.lng], data.user ? 15 : 13);
+    }
   };
 </script></body></html>`;
 

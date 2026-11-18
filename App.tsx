@@ -724,12 +724,17 @@ export default function App() {
         onSelectPlanCycle={profile?.planTier === 'pro' ? undefined : async (cycle: 'monthly' | 'yearly') => {
           try {
             const { data: { session: currentSession } } = await supabase.auth.getSession();
-            if (!currentSession?.access_token) throw new Error('Faça login novamente para assinar o Caneto Pro.');
+            let activeSession = currentSession ?? session;
+            if (!activeSession?.access_token) {
+              const { data: refreshed } = await supabase.auth.refreshSession();
+              activeSession = refreshed.session ?? activeSession;
+            }
+            if (!activeSession?.access_token) throw new Error('Faça login novamente para assinar o Caneto Pro.');
             const res = await fetch(`${CANETO_API}/api/stripe/checkout`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${currentSession.access_token}`,
+                Authorization: `Bearer ${activeSession.access_token}`,
               },
               body: JSON.stringify({ cycle }),
             });

@@ -15,7 +15,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { Camera } from 'expo-camera';
 import { supabase } from '../../supabase';
+import { requestNotificationPermission } from '../../core/device/notifications';
 import { CanetoIcon } from '../../ui/CanetoIcon';
 import { getErrorMessage } from '../../ui/error';
 import { createThemedStyles, theme } from '../../ui/theme';
@@ -69,6 +72,7 @@ export function OnboardingModal({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [permStatus, setPermStatus] = useState({ location: false, camera: false, notifications: false });
   const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -413,6 +417,53 @@ export function OnboardingModal({
                   <View style={styles.featureList}>
                     <FeatureRow icon="map-outline" title="Mapa e catálogo de lojas" description="Veja lojas próximas, histórico de preços e importe itens direto para sua lista." />
                     <FeatureRow icon="people-outline" title="Listas compartilhadas" description="Convide familiares e amigos usando seu @identificador ou link." />
+                  </View>
+                  <View style={styles.toggleBox}>
+                    <Pressable
+                      style={styles.toggleRow}
+                      onPress={() => {
+                        void triggerHaptic('selection');
+                        void Location.requestForegroundPermissionsAsync().then(res => setPermStatus(s => ({ ...s, location: res.status === 'granted' })));
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.toggleLabel}>Localização</Text>
+                        <Text style={styles.toggleDesc}>Para mostrar mercados próximos</Text>
+                      </View>
+                      <Text style={{ color: permStatus.location ? theme.success : theme.blue, fontFamily: theme.font.bold, fontSize: 12 }}>
+                        {permStatus.location ? 'Concedida' : 'Permitir'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.toggleRow}
+                      onPress={() => {
+                        void triggerHaptic('selection');
+                        void Camera.requestCameraPermissionsAsync().then(res => setPermStatus(s => ({ ...s, camera: res.status === 'granted' })));
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.toggleLabel}>Câmera</Text>
+                        <Text style={styles.toggleDesc}>Para ler códigos de barras e notas</Text>
+                      </View>
+                      <Text style={{ color: permStatus.camera ? theme.success : theme.blue, fontFamily: theme.font.bold, fontSize: 12 }}>
+                        {permStatus.camera ? 'Concedida' : 'Permitir'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.toggleRow, styles.toggleRowLast]}
+                      onPress={() => {
+                        void triggerHaptic('selection');
+                        void requestNotificationPermission().then(ok => setPermStatus(s => ({ ...s, notifications: ok })));
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.toggleLabel}>Notificações</Text>
+                        <Text style={styles.toggleDesc}>Avisos de listas compartilhadas</Text>
+                      </View>
+                      <Text style={{ color: permStatus.notifications ? theme.success : theme.blue, fontFamily: theme.font.bold, fontSize: 12 }}>
+                        {permStatus.notifications ? 'Concedida' : 'Permitir'}
+                      </Text>
+                    </Pressable>
                   </View>
                 </View>
               )}
